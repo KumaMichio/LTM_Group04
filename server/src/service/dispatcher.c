@@ -112,8 +112,7 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
             switch (cmd) {
                 case CMD_REQ_CREATE_ROOM: {
                     int64_t room_id;
-                    room_mode_t mode = ROOM_MODE_ONEVN; // hoặc parse từ payload
-                    if (dao_rooms_create(sess->user_id, mode, &room_id) == 0) {
+                    if (dao_rooms_create(sess->user_id, &room_id) == 0) {
                         // trả về info room
                         char buf[128];
                         snprintf(buf, sizeof(buf), "{\"room_id\": %ld}", room_id);

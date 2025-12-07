@@ -9,6 +9,7 @@ BUILD_DIR = build
 DAO_OBJS = \
     src/dao/dao_chat.o \
     src/dao/dao_friends.o \
+    src/dao/dao_onevn.o \
     src/dao/dao_question.o \
     src/dao/dao_quickmode.o \
     src/dao/dao_rooms.o \

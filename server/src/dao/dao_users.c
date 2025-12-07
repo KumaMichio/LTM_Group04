@@ -60,7 +60,8 @@ int dao_users_find_by_username(const char *username, User *out_user) {
     if (!db_is_ok()) return -1;
 
     const char *sql =
-        "SELECT user_id, username, password, COALESCE(avatar_img,'') "
+        "SELECT user_id, username, password, COALESCE(avatar_img,''), "
+        "       quickmode_games, quickmode_wins, onevn_games, onevn_wins "
         "FROM users WHERE username = $1;";
 
     const char *params[1] = { username };
@@ -103,7 +104,8 @@ int dao_users_find_by_id(int64_t user_id, User *out_user) {
     if (!db_is_ok()) return -1;
 
     const char *sql =
-        "SELECT user_id, username, password, COALESCE(avatar_img,'') "
+        "SELECT user_id, username, password, COALESCE(avatar_img,''), "
+        "       quickmode_games, quickmode_wins, onevn_games, onevn_wins "
         "FROM users WHERE user_id = $1;";
 
     char idbuf[32];

@@ -15,14 +15,17 @@ static const char *friend_status_to_str(friend_status_t st) {
     }
 }
 
+// Add DECLINED status
+#define FRIEND_STATUS_DECLINED 3
+
 int dao_friends_send_request(int64_t from_user, int64_t to_user) {
     PGconn *conn = db_get_conn();
     if (!conn) return -1;
 
     const char *sql =
-        "INSERT INTO friends (user_id, friend_id, status) "
+        "INSERT INTO friend_relationships (user_id, peer_user_id, status) "
         "VALUES ($1, $2, 'PENDING') "
-        "ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'PENDING', updated_at = NOW();";
+        "ON CONFLICT (user_id, peer_user_id) DO UPDATE SET status = 'PENDING', responded_at = NULL;";
 
     const char *params[2];
     char buf1[32], buf2[32];
@@ -47,9 +50,9 @@ int dao_friends_respond_request(int64_t from_user, int64_t to_user, bool accept)
     if (!conn) return -1;
 
     const char *sql =
-        "UPDATE friends "
-        "SET status = $3, updated_at = NOW() "
-        "WHERE user_id = $1 AND friend_id = $2 AND status = 'PENDING';";
+        "UPDATE friend_relationships "
+        "SET status = $3, responded_at = NOW() "
+        "WHERE user_id = $1 AND peer_user_id = $2 AND status = 'PENDING';";
 
     const char *params[3];
     char buf1[32], buf2[32];
@@ -57,7 +60,7 @@ int dao_friends_respond_request(int64_t from_user, int64_t to_user, bool accept)
     snprintf(buf2, sizeof(buf2), "%ld", to_user);
     params[0] = buf1;
     params[1] = buf2;
-    params[2] = accept ? "ACCEPTED" : "BLOCKED";
+    params[2] = accept ? "ACCEPTED" : "DECLINED";
 
     PGresult *res = PQexecParams(conn, sql, 3, NULL, params, NULL, NULL, 0);
 
@@ -79,8 +82,8 @@ int dao_friends_list(int64_t user_id, void **result_json) {
 
     const char *sql =
         "SELECT u.user_id, u.username, f.status "
-        "FROM friends f "
-        "JOIN users u ON u.user_id = f.friend_id "
+        "FROM friend_relationships f "
+        "JOIN users u ON u.user_id = f.peer_user_id "
         "WHERE f.user_id = $1 AND f.status = 'ACCEPTED';";
 
     char buf[32];
@@ -144,8 +147,8 @@ int dao_friends_update_status(int64_t user_id, int64_t friend_id, friend_status_
     if (!conn) return -1;
 
     const char *sql =
-        "UPDATE friends SET status = $3, updated_at = NOW() "
-        "WHERE user_id = $1 AND friend_id = $2;";
+        "UPDATE friend_relationships SET status = $3 "
+        "WHERE user_id = $1 AND peer_user_id = $2;";
 
     char buf1[32], buf2[32];
     snprintf(buf1, sizeof(buf1), "%ld", user_id);

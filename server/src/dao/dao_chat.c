@@ -10,7 +10,7 @@ int dao_chat_send_dm(int64_t sender_id, int64_t receiver_id, const char *content
     if (!conn) return -1;
 
     const char *sql =
-        "INSERT INTO messages (sender_id, receiver_id, content) "
+        "INSERT INTO messages (sender_id, receiver_id, message) "
         "VALUES ($1, $2, $3);";
 
     char buf_sender[32], buf_receiver[32];
@@ -34,7 +34,7 @@ int dao_chat_send_room(int64_t sender_id, int64_t room_id, const char *content) 
     if (!conn) return -1;
 
     const char *sql =
-        "INSERT INTO messages (sender_id, room_id, content) "
+        "INSERT INTO messages (sender_id, room_id, message) "
         "VALUES ($1, $2, $3);";
 
     char buf_sender[32], buf_room[32];
@@ -58,7 +58,7 @@ int dao_chat_fetch_offline(int64_t user_id, void **result_json) {
     if (!conn) return -1;
 
     const char *sql =
-        "SELECT msg_id, sender_id, content, created_at "
+        "SELECT id, sender_id, message, created_at "
         "FROM messages "
         "WHERE receiver_id = $1 AND is_read = FALSE "
         "ORDER BY created_at ASC;";
@@ -89,7 +89,7 @@ int dao_chat_fetch_offline(int64_t user_id, void **result_json) {
         char *esc = util_json_escape(content);
         if (!esc) esc = strdup("");
 
-        int need = snprintf(NULL, 0, "{\"msg_id\": %s, \"sender_id\": %s, \"content\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
+        int need = snprintf(NULL, 0, "{\"id\": %s, \"sender_id\": %s, \"message\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
         if (used + (size_t)need + 3 >= cap) {
             cap = (used + (size_t)need + 3) * 2;
             char *tmp = realloc(out, cap);
@@ -98,7 +98,7 @@ int dao_chat_fetch_offline(int64_t user_id, void **result_json) {
         }
 
         if (i > 0) out[used++] = ',';
-        used += snprintf(out + used, cap - used, "{\"msg_id\": %s, \"sender_id\": %s, \"content\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
+        used += snprintf(out + used, cap - used, "{\"id\": %s, \"sender_id\": %s, \"message\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
 
         free(esc);
     }
@@ -121,7 +121,7 @@ int dao_chat_fetch_offline_from_sender(int64_t receiver_id, int64_t sender_id, v
     if (!conn) return -1;
 
     const char *sql =
-        "SELECT msg_id, sender_id, content, created_at "
+        "SELECT id, sender_id, message, created_at "
         "FROM messages "
         "WHERE receiver_id = $1 AND sender_id = $2 AND is_read = FALSE "
         "ORDER BY created_at ASC;";
@@ -153,7 +153,7 @@ int dao_chat_fetch_offline_from_sender(int64_t receiver_id, int64_t sender_id, v
         char *esc = util_json_escape(content);
         if (!esc) esc = strdup("");
 
-        int need = snprintf(NULL, 0, "{\"msg_id\": %s, \"sender_id\": %s, \"content\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
+        int need = snprintf(NULL, 0, "{\"id\": %s, \"sender_id\": %s, \"message\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
         if (used + (size_t)need + 3 >= cap) {
             cap = (used + (size_t)need + 3) * 2;
             char *tmp = realloc(out, cap);
@@ -162,7 +162,7 @@ int dao_chat_fetch_offline_from_sender(int64_t receiver_id, int64_t sender_id, v
         }
 
         if (i > 0) out[used++] = ',';
-        used += snprintf(out + used, cap - used, "{\"msg_id\": %s, \"sender_id\": %s, \"content\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
+        used += snprintf(out + used, cap - used, "{\"id\": %s, \"sender_id\": %s, \"message\": \"%s\", \"created_at\": \"%s\"}", msg_id, sender, esc, created);
 
         free(esc);
     }

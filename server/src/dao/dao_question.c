@@ -10,7 +10,7 @@ int dao_question_get_random(const char *difficulty, Question *out_q) {
 
     const char *sql =
         "SELECT question_id, difficulty_level, content, "
-        "       op_a, op_b, op_c, op_d, correct_op "
+        "       \"opA\", \"opB\", \"opC\", \"opD\", correct_op "
         "FROM question "
         "WHERE difficulty_level = $1 "
         "ORDER BY random() LIMIT 1;";

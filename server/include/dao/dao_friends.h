@@ -8,6 +8,7 @@
 typedef enum {
     FRIEND_STATUS_PENDING,
     FRIEND_STATUS_ACCEPTED,
+    FRIEND_STATUS_DECLINED,
     FRIEND_STATUS_BLOCKED
 } friend_status_t;
 
