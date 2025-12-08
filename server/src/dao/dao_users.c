@@ -1,9 +1,11 @@
 // server/src/dao/dao_users.c
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
 #include "../include/db.h"
 #include "dao/dao_users.h"
+#include "utils/crypto.h"
 
 int dao_users_create(const char *username, const char *password, int64_t *out_user_id) {
     if (!db_is_ok()) return -1;

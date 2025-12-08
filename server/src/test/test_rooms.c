@@ -9,7 +9,7 @@ int main(void) {
     }
 
     int64_t room_id;
-    if (dao_rooms_create(1, ROOM_MODE_ONEVN, &room_id) == 0) {
+    if (dao_rooms_create(1, &room_id) == 0) {
         printf("Create room OK, id = %ld\n", room_id);
     } else {
         printf("Create room FAILED\n");

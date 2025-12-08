@@ -11,7 +11,6 @@ DAO_OBJS = \
     src/dao/dao_friends.o \
     src/dao/dao_onevn.o \
     src/dao/dao_question.o \
-    src/dao/dao_quickmode.o \
     src/dao/dao_rooms.o \
     src/dao/dao_sessions.o \
     src/dao/dao_stats.o \

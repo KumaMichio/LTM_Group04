@@ -1,6 +1,7 @@
 // server/src/test/test_auth.c
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "../include/db.h"
 #include "service/auth_service.h"
 

@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <libpq-fe.h>
 #include "db.h"
 #include "utils/json.h"
@@ -7,14 +8,15 @@
 
 static const char *room_status_to_str(room_status_t s) {
     switch (s) {
-        case ROOM_STATUS_WAITING:  return "WAITING";
-        case ROOM_STATUS_PLAYING:  return "IN_PROGRESS";  // Updated
-        case ROOM_STATUS_FINISHED: return "FINISHED";
+        case ROOM_STATUS_WAITING:      return "WAITING";
+        case ROOM_STATUS_STARTING:     return "STARTING";
+        case ROOM_STATUS_IN_PROGRESS:  return "IN_PROGRESS";
+        case ROOM_STATUS_FINISHED:     return "FINISHED";
         default: return "WAITING";
     }
 }
 
-int dao_rooms_create(int64_t owner_id, room_mode_t mode, int64_t *out_room_id) {
+int dao_rooms_create(int64_t owner_id, int64_t *out_room_id) {
     PGconn *conn = db_get_conn();
     if (!conn) return -1;
 
@@ -48,6 +50,7 @@ int dao_rooms_create(int64_t owner_id, room_mode_t mode, int64_t *out_room_id) {
 }
 
 int dao_rooms_join(int64_t room_id, int64_t user_id, int is_owner) {
+    (void)is_owner;  // Unused parameter (kept for compatibility)
     PGconn *conn = db_get_conn();
     if (!conn) return -1;
     const char *sql =

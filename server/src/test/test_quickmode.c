@@ -6,7 +6,6 @@
 #include <time.h>
 #include "db.h"
 #include "service/quickmode_service.h"
-#include "dao/dao_quickmode.h"
 #include "dao/dao_question.h"
 #include "utils/timer.h"
 
@@ -23,15 +22,8 @@ int main(void) {
     // giả sử đã có user 'alice'
     int64_t user_id = 1;   // tùy DB, có thể query trước, tạm hard-code để test
 
-    // Interactive quickmode test: create session, loop rounds until wrong answer
-    QuickmodeSession sess;
-    if (dao_qm_create_session(user_id, &sess) != 0) {
-        fprintf(stderr, "QM: create session failed\n");
-        db_disconnect();
-        return 1;
-    }
-
-    printf("Quickmode session created: session_id=%lld user_id=%lld\n", (long long)sess.session_id, (long long)sess.user_id);
+    // Quickmode không lưu vào DB nữa, chỉ test game logic trong memory
+    printf("Quickmode test (no DB storage): user_id=%lld\n", (long long)user_id);
 
     int correct = 0;
     
@@ -40,12 +32,6 @@ int main(void) {
         Question q;
         if (dao_question_get_random(difficulty, &q) != 0) {
             fprintf(stderr, "QM: failed to get question for difficulty=%s\n", difficulty);
-            break;
-        }
-
-        QuickmodeRound rd;
-        if (dao_qm_create_round(sess.session_id, round, q.question_id, q.difficulty, &rd) != 0) {
-            fprintf(stderr, "QM: failed to create round %d\n", round);
             break;
         }
 
