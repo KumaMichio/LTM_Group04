@@ -1,13 +1,16 @@
 #include "WinWindow.h"
 #include "QuickModeWindow.h"
 #include "GameModeSelectionWindow.h"
+#include "NetworkClient.h"
 #include <QApplication>
 #include <QScreen>
+#include <QMessageBox>
 
-WinWindow::WinWindow(const QString &username, int score, QWidget *parent)
+WinWindow::WinWindow(const QString &username, int score, NetworkClient *client, QWidget *parent)
     : QMainWindow(parent)
     , m_username(username)
     , m_score(score)
+    , m_client(client)
 {
     setWindowTitle("Chiến Thắng! - Ai là triệu phú");
     setMinimumSize(500, 400);
@@ -126,8 +129,20 @@ WinWindow::~WinWindow()
 
 void WinWindow::onPlayAgainClicked()
 {
-    QuickModeWindow *quickModeWindow = new QuickModeWindow(m_username, this);
+    if (!m_client) {
+        QMessageBox::warning(this, "Lỗi", "NetworkClient không hợp lệ!");
+        return;
+    }
+    
+    // Disable button to prevent multiple clicks
+    m_playAgainButton->setEnabled(false);
+    
+    // Create new QuickModeWindow without parent to avoid window management issues
+    QuickModeWindow *quickModeWindow = new QuickModeWindow(m_username, m_client, nullptr);
+    quickModeWindow->setAttribute(Qt::WA_DeleteOnClose, true);  // Auto-delete when closed
     quickModeWindow->show();
+    
+    // Close this window
     this->close();
 }
 

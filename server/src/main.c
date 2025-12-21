@@ -1,6 +1,7 @@
 // server/src/main.c
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "db.h"
 #include "service/auth_service.h"
 #include "service/quickmode_service.h"
@@ -8,6 +9,9 @@
 #include <string.h>
 
 int main() {
+    // Seed random number generator
+    srand((unsigned int)time(NULL));
+
     const char *conn = getenv("DB_CONN");
     if (!conn) {
         printf("Please set DB_CONN environment variable!\n");

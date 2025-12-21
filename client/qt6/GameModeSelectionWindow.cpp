@@ -1,5 +1,6 @@
 #include "GameModeSelectionWindow.h"
 #include "QuickModeWindow.h"
+#include "LoginWindow.h"
 #include <QApplication>
 #include <QScreen>
 #include <QMessageBox>
@@ -127,8 +128,21 @@ GameModeSelectionWindow::~GameModeSelectionWindow()
 
 void GameModeSelectionWindow::onQuickModeClicked()
 {
+    // Get NetworkClient from parent (LoginWindow)
+    LoginWindow *loginWindow = qobject_cast<LoginWindow*>(parent());
+    if (!loginWindow) {
+        QMessageBox::warning(this, "Lỗi", "Không thể lấy NetworkClient!");
+        return;
+    }
+    
+    NetworkClient *client = loginWindow->getNetworkClient();
+    if (!client) {
+        QMessageBox::warning(this, "Lỗi", "NetworkClient không hợp lệ!");
+        return;
+    }
+    
     // Open QuickMode window
-    QuickModeWindow *quickModeWindow = new QuickModeWindow(m_username, this);
+    QuickModeWindow *quickModeWindow = new QuickModeWindow(m_username, client, this);
     quickModeWindow->show();
     this->hide();
 }

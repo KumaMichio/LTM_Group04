@@ -42,14 +42,64 @@ template <> constexpr inline auto QuickModeWindow::qt_create_metaobjectdata<qt_m
         "QuickModeWindow",
         "onAnswerClicked",
         "",
-        "onTimeout"
+        "onLifelineClicked",
+        "onTimeout",
+        "onGameStart",
+        "sessionId",
+        "totalRounds",
+        "onQuestionReceived",
+        "round",
+        "questionId",
+        "content",
+        "QJsonObject",
+        "options",
+        "difficulty",
+        "onAnswerResult",
+        "correct",
+        "correctAnswer",
+        "score",
+        "gameOver",
+        "onGameOver",
+        "finalScore",
+        "status",
+        "win",
+        "onLifelineResult",
+        "remainingOptions",
+        "removedOptions",
+        "remaining"
     };
 
     QtMocHelpers::UintData qt_methods {
         // Slot 'onAnswerClicked'
         QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onTimeout'
+        // Slot 'onLifelineClicked'
         QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onTimeout'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onGameStart'
+        QtMocHelpers::SlotData<void(qint64, int)>(5, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 6 }, { QMetaType::Int, 7 },
+        }}),
+        // Slot 'onQuestionReceived'
+        QtMocHelpers::SlotData<void(qint64, int, qint64, const QString &, const QJsonObject &, const QString &)>(8, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 6 }, { QMetaType::Int, 9 }, { QMetaType::LongLong, 10 }, { QMetaType::QString, 11 },
+            { 0x80000000 | 12, 13 }, { QMetaType::QString, 14 },
+        }}),
+        // Slot 'onAnswerResult'
+        QtMocHelpers::SlotData<void(qint64, int, bool, const QString &, int, bool)>(15, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 6 }, { QMetaType::Int, 9 }, { QMetaType::Bool, 16 }, { QMetaType::QString, 17 },
+            { QMetaType::Int, 18 }, { QMetaType::Bool, 19 },
+        }}),
+        // Slot 'onGameOver'
+        QtMocHelpers::SlotData<void(qint64, int, int, const QString &, bool)>(20, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 6 }, { QMetaType::Int, 21 }, { QMetaType::Int, 7 }, { QMetaType::QString, 22 },
+            { QMetaType::Bool, 23 },
+        }}),
+        // Slot 'onLifelineResult'
+        QtMocHelpers::SlotData<void(qint64, int, const QStringList &, const QStringList &, int)>(24, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 6 }, { QMetaType::Int, 9 }, { QMetaType::QStringList, 25 }, { QMetaType::QStringList, 26 },
+            { QMetaType::Int, 27 },
+        }}),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -74,11 +124,16 @@ void QuickModeWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
     if (_c == QMetaObject::InvokeMetaMethod) {
         switch (_id) {
         case 0: _t->onAnswerClicked(); break;
-        case 1: _t->onTimeout(); break;
+        case 1: _t->onLifelineClicked(); break;
+        case 2: _t->onTimeout(); break;
+        case 3: _t->onGameStart((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2]))); break;
+        case 4: _t->onQuestionReceived((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<qint64>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<QJsonObject>>(_a[5])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[6]))); break;
+        case 5: _t->onAnswerResult((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[5])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[6]))); break;
+        case 6: _t->onGameOver((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[5]))); break;
+        case 7: _t->onLifelineResult((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<QStringList>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QStringList>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[5]))); break;
         default: ;
         }
     }
-    (void)_a;
 }
 
 const QMetaObject *QuickModeWindow::metaObject() const
@@ -100,14 +155,14 @@ int QuickModeWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 2)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 2;
+        _id -= 8;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 2)
+        if (_id < 8)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 2;
+        _id -= 8;
     }
     return _id;
 }

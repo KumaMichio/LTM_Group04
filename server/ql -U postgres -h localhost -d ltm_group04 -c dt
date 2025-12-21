@@ -1,0 +1,15 @@
+                                                    List of databases
+    Name     |  Owner   | Encoding | Locale Provider | Collate |  Ctype  | ICU Locale | ICU Rules |   Access privileges   
+-------------+----------+----------+-----------------+---------+---------+------------+-----------+-----------------------
+ ltm_group04 | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | 
+ postgres    | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | 
+ quizdb      | appuser  | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | 
+ template0   | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | =c/postgres          +
+             |          |          |                 |         |         |            |           | postgres=CTc/postgres
+ template1   | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | =c/postgres          +
+             |          |          |                 |         |         |            |           | postgres=CTc/postgres
+ testdb      | postgres | UTF8     | libc            | C.UTF-8 | C.UTF-8 |            |           | =Tc/postgres         +
+             |          |          |                 |         |         |            |           | postgres=CTc/postgres+
+             |          |          |                 |         |         |            |           | appuser=CTc/postgres
+(6 rows)
+

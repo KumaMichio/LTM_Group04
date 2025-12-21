@@ -1,5 +1,9 @@
 C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/MillionaireClient_autogen/EWIEGA46WW/moc_QuickModeWindow.cpp: C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/QuickModeWindow.h \
   C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/MillionaireClient_autogen/moc_predefs.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/QDataStream \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/QJsonDocument \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/QJsonObject \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/QObject \
   C:/Qt/6.10.1/mingw_64/include/QtCore/QTimer \
   C:/Qt/6.10.1/mingw_64/include/QtCore/q17memory.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/q20functional.h \
@@ -26,6 +30,9 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtCore/qbytearrayalgorithms.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qbytearraylist.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qbytearrayview.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qcalendar.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qcborcommon.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qcborvalue.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qchar.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qcheckedint_impl.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qcompare.h \
@@ -40,6 +47,7 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtCore/qcontiguouscache.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qdarwinhelpers.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qdatastream.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qdatetime.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qdeadlinetimer.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qdebug.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qendian.h \
@@ -59,9 +67,14 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtCore/qiodevicebase.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qiterable.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qiterator.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qjsondocument.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qjsonobject.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qjsonparseerror.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qjsonvalue.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qlatin1stringview.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qline.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qlist.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qlocale.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qlogging.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qmalloc.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qmap.h \
@@ -82,6 +95,7 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtCore/qprocessordetection.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qrect.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qrefcount.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/qregularexpression.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qscopedpointer.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qscopeguard.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qset.h \
@@ -130,6 +144,7 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtCore/qtypes.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qurl.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qutf8stringview.h \
+  C:/Qt/6.10.1/mingw_64/include/QtCore/quuid.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qvariant.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qvarlengtharray.h \
   C:/Qt/6.10.1/mingw_64/include/QtCore/qversiontagging.h \
@@ -163,6 +178,13 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtGui/qtransform.h \
   C:/Qt/6.10.1/mingw_64/include/QtGui/qwindowdefs.h \
   C:/Qt/6.10.1/mingw_64/include/QtGui/qwindowdefs_win.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/QTcpSocket \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qabstractsocket.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qhostaddress.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qtcpsocket.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qtnetwork-config.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qtnetworkexports.h \
+  C:/Qt/6.10.1/mingw_64/include/QtNetwork/qtnetworkglobal.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QHBoxLayout \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QLabel \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QMainWindow \
@@ -396,4 +418,5 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/sys/types.h \
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/time.h \
   C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/vadefs.h \
-  C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h
+  C:/Qt/Tools/mingw1310_64/x86_64-w64-mingw32/include/wchar.h \
+  C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/NetworkClient.h

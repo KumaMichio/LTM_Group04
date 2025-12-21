@@ -1,5 +1,7 @@
 #include "NetworkClient.h"
 #include <QDebug>
+#include <QJsonArray>
+#include <QJsonValue>
 
 // Command definitions (matching server)
 #define CMD_REQ_REGISTER    0x0101
@@ -9,10 +11,26 @@
 #define CMD_REQ_LOGOUT      0x0106
 #define CMD_RES_LOGOUT      0x0107
 
+// QuickMode commands
+#define CMD_REQ_START_QUICKMODE    0x0500
+#define CMD_NOTIFY_GAME_START      0x0501
+#define CMD_NOTIFY_QUESTION        0x0502
+#define CMD_REQ_SUBMIT_ANSWER      0x0503
+#define CMD_RES_SUBMIT_ANSWER      0x0504
+#define CMD_NOTIFY_ANSWER_RESULT   0x0505
+#define CMD_REQ_USE_LIFELINE       0x0506
+#define CMD_RES_USE_LIFELINE       0x0507
+#define CMD_NOTIFY_GAME_OVER       0x0509
+#define CMD_REQ_GET_QUESTION       0x050A
+
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent)
     , m_socket(new QTcpSocket(this))
     , m_loggedIn(false)
+    , m_userId(0)
+    , m_lastQuestionSessionId(0)
+    , m_lastQuestionRound(0)
+    , m_lastQuestionId(0)
 {
     connect(m_socket, &QTcpSocket::readyRead, this, &NetworkClient::onReadyRead);
     connect(m_socket, &QTcpSocket::errorOccurred, this, &NetworkClient::onSocketError);
@@ -93,17 +111,12 @@ void NetworkClient::sendPacket(quint16 cmd, quint16 user_id, const QByteArray &j
     qDebug() << "Sent packet: cmd=" << QString::number(cmd, 16) 
              << "user_id=" << user_id << "length=" << json.size();
 
-    // Wait for response (server closes connection after sending response)
-    // Try to read immediately if data is available
-    if (m_socket->waitForReadyRead(3000)) {
-        qDebug() << "Data available, reading response...";
+    // Use async signal/slot mechanism only - no blocking wait
+    // Response will be handled by onReadyRead() when data arrives
+    // Check if data is already available (non-blocking)
+    if (m_socket->bytesAvailable() > 0) {
+        qDebug() << "Data already available, reading response...";
         onReadyRead();
-    } else {
-        qDebug() << "No data received within timeout, checking bytes available:" << m_socket->bytesAvailable();
-        // Still try to read if bytes are available
-        if (m_socket->bytesAvailable() > 0) {
-            onReadyRead();
-        }
     }
 }
 
@@ -138,8 +151,62 @@ void NetworkClient::sendLogout()
     QJsonDocument doc(obj);
     QByteArray json = doc.toJson(QJsonDocument::Compact);
 
-    quint16 user_id = m_loggedIn ? static_cast<quint16>(m_token.toULongLong()) : 0;
+    quint16 user_id = m_loggedIn ? m_userId : 0;
     sendPacket(CMD_REQ_LOGOUT, user_id, json);
+}
+
+quint16 NetworkClient::getUserId() const
+{
+    return m_userId;
+}
+
+void NetworkClient::sendStartQuickMode()
+{
+    QJsonObject obj;  // Empty object
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_START_QUICKMODE, m_userId, json);
+}
+
+void NetworkClient::sendGetQuestion(qint64 sessionId, int round)
+{
+    qDebug() << "sendGetQuestion: sessionId=" << sessionId << "round=" << round;
+    QJsonObject obj;
+    obj["session_id"] = sessionId;
+    obj["round"] = round;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+    
+    qDebug() << "Sending CMD_REQ_GET_QUESTION with JSON:" << json;
+
+    sendPacket(CMD_REQ_GET_QUESTION, m_userId, json);
+}
+
+void NetworkClient::sendSubmitAnswer(qint64 sessionId, int round, const QString &answer)
+{
+    QJsonObject obj;
+    obj["session_id"] = sessionId;
+    obj["round"] = round;
+    obj["answer"] = answer;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_SUBMIT_ANSWER, m_userId, json);
+}
+
+void NetworkClient::sendUseLifeline(qint64 sessionId, int round)
+{
+    QJsonObject obj;
+    obj["session_id"] = sessionId;
+    obj["round"] = round;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_USE_LIFELINE, m_userId, json);
 }
 
 void NetworkClient::onReadyRead()
@@ -213,6 +280,10 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
             } else if (obj.contains("token")) {
                 m_token = obj["token"].toString();
                 m_loggedIn = true;
+                // Extract user_id if available
+                if (obj.contains("user_id")) {
+                    m_userId = static_cast<quint16>(obj["user_id"].toInt());
+                }
                 emit loginResponse(true, m_token, "");
             } else {
                 emit loginResponse(false, "", "Phản hồi không hợp lệ");
@@ -222,7 +293,106 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
         case CMD_RES_LOGOUT:
             m_loggedIn = false;
             m_token.clear();
+            m_userId = 0;
             emit logoutResponse(true);
+            break;
+
+        // QuickMode responses
+        case CMD_NOTIFY_GAME_START:
+            if (obj.contains("session_id") && obj.contains("total_rounds")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int totalRounds = obj["total_rounds"].toInt();
+                // Reset duplicate tracking when new game starts
+                m_lastQuestionSessionId = 0;
+                m_lastQuestionRound = 0;
+                m_lastQuestionId = 0;
+                emit quickModeGameStart(sessionId, totalRounds);
+            }
+            break;
+
+        case CMD_NOTIFY_QUESTION:
+            qDebug() << "CMD_NOTIFY_QUESTION received, checking fields...";
+            qDebug() << "Has session_id:" << obj.contains("session_id");
+            qDebug() << "Has round:" << obj.contains("round");
+            qDebug() << "Has content:" << obj.contains("content");
+            qDebug() << "Has options:" << obj.contains("options");
+            if (obj.contains("session_id") && obj.contains("round") && 
+                obj.contains("content") && obj.contains("options")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int round = obj["round"].toInt();
+                qint64 questionId = obj["question_id"].toVariant().toLongLong();
+                
+                // SOLUTION 1: Prevent duplicate at NetworkClient level (early blocking)
+                if (sessionId == m_lastQuestionSessionId && 
+                    round == m_lastQuestionRound && 
+                    questionId == m_lastQuestionId) {
+                    qDebug() << "[NetworkClient] Duplicate question packet detected and blocked. "
+                             << "sessionId=" << sessionId << " round=" << round 
+                             << " questionId=" << questionId;
+                    break;  // Don't emit signal
+                }
+                
+                // Update tracking
+                m_lastQuestionSessionId = sessionId;
+                m_lastQuestionRound = round;
+                m_lastQuestionId = questionId;
+                
+                QString content = obj["content"].toString();
+                QJsonObject options = obj["options"].toObject();
+                QString difficulty = obj["difficulty"].toString();
+                qDebug() << "Emitting quickModeQuestionReceived: sessionId=" << sessionId 
+                         << "round=" << round << "content=" << content;
+                emit quickModeQuestionReceived(sessionId, round, questionId, content, options, difficulty);
+            } else {
+                qDebug() << "CMD_NOTIFY_QUESTION missing required fields!";
+            }
+            break;
+
+        case CMD_RES_SUBMIT_ANSWER:
+            if (obj.contains("session_id") && obj.contains("round")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int round = obj["round"].toInt();
+                bool correct = obj["correct"].toBool();
+                QString correctAnswer = obj["correct_answer"].toString();
+                int score = obj["score"].toInt();
+                bool gameOver = obj["game_over"].toBool();
+                emit quickModeAnswerResult(sessionId, round, correct, correctAnswer, score, gameOver);
+            }
+            break;
+
+        case CMD_NOTIFY_ANSWER_RESULT:
+            // Additional notification, can be ignored or used for UI updates
+            break;
+
+        case CMD_NOTIFY_GAME_OVER:
+            if (obj.contains("session_id")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int finalScore = obj["final_score"].toInt();
+                int totalRounds = obj["total_rounds"].toInt();
+                QString status = obj["status"].toString();
+                bool win = obj["win"].toBool();
+                emit quickModeGameOver(sessionId, finalScore, totalRounds, status, win);
+            }
+            break;
+
+        case CMD_RES_USE_LIFELINE:
+            if (obj.contains("session_id") && obj.contains("round") && 
+                obj.contains("remaining_options") && obj.contains("removed_options")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int round = obj["round"].toInt();
+                QStringList remainingOptions;
+                QJsonArray remainingArr = obj["remaining_options"].toArray();
+                for (const QJsonValue &val : remainingArr) {
+                    remainingOptions << val.toString();
+                }
+                QStringList removedOptions;
+                QJsonArray removedArr = obj["removed_options"].toArray();
+                for (const QJsonValue &val : removedArr) {
+                    removedOptions << val.toString();
+                }
+                int remaining = obj["lifeline_remaining"].toInt();
+                emit quickModeLifelineResult(sessionId, round, remainingOptions, removedOptions, remaining);
+            }
             break;
 
         default:

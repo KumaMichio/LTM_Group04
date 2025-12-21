@@ -37,6 +37,11 @@ LoginWindow::~LoginWindow()
     delete ui;
 }
 
+NetworkClient* LoginWindow::getNetworkClient() const
+{
+    return m_client;
+}
+
 void LoginWindow::setupUI()
 {
     // Set default values

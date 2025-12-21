@@ -23,6 +23,7 @@ SERVICE_OBJS = \
     src/service/protocol.o \
     src/service/quickmode_service.o \
     src/service/server.o \
+    src/service/session_manager.o \
     src/service/stats_service.o
 
 UTIL_OBJS = \
@@ -43,6 +44,7 @@ TEST_DB_OBJ        = src/test/test_db.o
 TEST_CHAT_OBJ      = src/test/test_chat.o
 TEST_FRIENDS_OBJ   = src/test/test_friends.o
 TEST_QUICKMODE_OBJ = src/test/test_quickmode.o
+TEST_QUICKMODE_NETWORK_OBJ = src/test/test_quickmode_network.o
 TEST_ROOMS_OBJ     = src/test/test_rooms.o
 
 # ==== TARGET MẶC ĐỊNH ====
@@ -54,6 +56,7 @@ all: $(BUILD_DIR)/server \
      $(BUILD_DIR)/test_chat \
      $(BUILD_DIR)/test_friends \
      $(BUILD_DIR)/test_quickmode \
+     $(BUILD_DIR)/test_quickmode_network \
      $(BUILD_DIR)/test_rooms
 
 # ==== SERVER ====
@@ -84,6 +87,10 @@ $(BUILD_DIR)/test_friends: $(COMMON_OBJS) $(TEST_FRIENDS_OBJ)
 $(BUILD_DIR)/test_quickmode: $(COMMON_OBJS) $(TEST_QUICKMODE_OBJ)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(COMMON_OBJS) $(TEST_QUICKMODE_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_quickmode_network: $(TEST_QUICKMODE_NETWORK_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_QUICKMODE_NETWORK_OBJ) -o $@ $(LDFLAGS)
 
 $(BUILD_DIR)/test_rooms: $(COMMON_OBJS) $(TEST_ROOMS_OBJ)
 	@mkdir -p $(BUILD_DIR)

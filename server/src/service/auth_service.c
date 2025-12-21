@@ -74,9 +74,11 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
                     // attach to session
                     sess->user_id = us.user_id;
                     strncpy(sess->access_token, us.access_token, sizeof(sess->access_token)-1);
-                    // reply with token
-                    char buf[128];
-                    int n = snprintf(buf, sizeof(buf), "{\"token\": \"%s\"}", us.access_token);
+                    // reply with token and user_id
+                    char buf[256];
+                    int n = snprintf(buf, sizeof(buf), 
+                        "{\"token\": \"%s\", \"user_id\": %lld}", 
+                        us.access_token, (long long)us.user_id);
                     protocol_send_response(sess, CMD_RES_LOGIN, buf, (uint32_t)n);
                 } else {
                     protocol_send_error(sess, CMD_RES_LOGIN, "LOGIN_FAILED");

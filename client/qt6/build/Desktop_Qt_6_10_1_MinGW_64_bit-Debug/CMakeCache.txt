@@ -333,8 +333,17 @@ QT_CREATOR_SKIP_PACKAGE_MANAGER_SETUP:BOOL=OFF
 //Qt Creator source groups extensions
 QT_CREATOR_SOURCE_GROUPS:BOOL=ON
 
+//Qt deployment tool
+QT_DEPLOY_TOOL_EXECUTABLE:STRING=
+
 //No help, variable specified on the command line.
 QT_MAINTENANCE_TOOL:FILEPATH=C:/Qt/MaintenanceTool.exe
+
+//Disable appman-controller
+QT_NO_APP_MAN_CONTROLLER:BOOL=TRUE
+
+//Disable Qt deployment tool
+QT_NO_DEPLOY_TOOL:BOOL=TRUE
 
 //No help, variable specified on the command line.
 QT_QMAKE_EXECUTABLE:FILEPATH=C:/Qt/6.10.1/mingw_64/bin/qmake.exe

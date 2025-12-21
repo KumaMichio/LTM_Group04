@@ -57,15 +57,17 @@
 #define CMD_RES_START_GAME      0x040D    // Server → Client: Start game result
 
 // ========== 0x05xx – Game: Basic Mode (Solo - Quickmode)
-#define CMD_NOTIFY_GAME_START   0x0501    // Server → Client: Start game
-#define CMD_NOTIFY_QUESTION     0x0502    // Server → Client: New question
-#define CMD_REQ_SUBMIT_ANSWER   0x0503    // Client → Server: Submit answer
-#define CMD_RES_SUBMIT_ANSWER   0x0504    // Server → Client: Answer received
-#define CMD_NOTIFY_ANSWER_RESULT 0x0505   // Server → Client: Correct/Wrong
-#define CMD_REQ_USE_LIFELINE    0x0506    // Client → Server: Use lifeline
-#define CMD_RES_USE_LIFELINE    0x0507    // Server → Client: Lifeline result
-#define CMD_NOTIFY_ROUND_END    0x0508    // Server → Client: End of round
-#define CMD_NOTIFY_GAME_OVER    0x0509    // Server → Client: Game end
+#define CMD_REQ_START_QUICKMODE    0x0500    // Client → Server: Start game
+#define CMD_NOTIFY_GAME_START      0x0501    // Server → Client: Start game notification
+#define CMD_NOTIFY_QUESTION        0x0502    // Server → Client: New question
+#define CMD_REQ_SUBMIT_ANSWER      0x0503    // Client → Server: Submit answer
+#define CMD_RES_SUBMIT_ANSWER      0x0504    // Server → Client: Answer received
+#define CMD_NOTIFY_ANSWER_RESULT   0x0505    // Server → Client: Correct/Wrong
+#define CMD_REQ_USE_LIFELINE       0x0506    // Client → Server: Use 50-50 lifeline (max 2 times per session)
+#define CMD_RES_USE_LIFELINE       0x0507    // Server → Client: Lifeline result (2 options remaining, 2 removed)
+#define CMD_NOTIFY_ROUND_END       0x0508    // Server → Client: End of round [OPTIONAL]
+#define CMD_NOTIFY_GAME_OVER       0x0509    // Server → Client: Game end
+#define CMD_REQ_GET_QUESTION        0x050A    // Client → Server: Get question for round
 
 // ========== 0x06xx – Game: 1vN Mode (Competitive)
 #define CMD_NOTIFY_GAME_START_1VN 0x0601  // Server → Client: Start 1vN

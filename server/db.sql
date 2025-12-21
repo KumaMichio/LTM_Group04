@@ -90,10 +90,10 @@ CREATE TABLE question (
   question_id      BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   difficulty_level TEXT NOT NULL CHECK (difficulty_level IN ('EASY','MEDIUM','HARD')),
   content          TEXT NOT NULL,
-  opA              VARCHAR(512) NOT NULL,
-  opB              VARCHAR(512) NOT NULL,
-  opC              VARCHAR(512) NOT NULL,
-  opD              VARCHAR(512) NOT NULL,
+  "opA"            VARCHAR(512) NOT NULL,
+  "opB"            VARCHAR(512) NOT NULL,
+  "opC"            VARCHAR(512) NOT NULL,
+  "opD"            VARCHAR(512) NOT NULL,
   correct_op       CHAR(1) NOT NULL CHECK (correct_op IN ('A','B','C','D')),
   explanation      TEXT NULL
 );
@@ -155,7 +155,7 @@ CREATE INDEX idx_onevn_players_jsonb ON onevn_sessions USING GIN (players);
 -- =========================
 -- SAMPLE DATA
 -- =========================
-INSERT INTO question (difficulty_level, content, opA, opB, opC, opD, correct_op, explanation)
+INSERT INTO question (difficulty_level, content, "opA", "opB", "opC", "opD", correct_op, explanation)
 VALUES
 ('EASY', 'Thủ đô của Việt Nam là thành phố nào?', 'Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Huế', 'B', 'Thủ đô của Việt Nam hiện nay là Hà Nội.'),
 ('EASY', '"AI" trong "Trí tuệ nhân tạo (AI)" là viết tắt của cụm từ tiếng Anh nào?', 'Artificial Intelligence', 'Advanced Internet', 'Automatic Interaction', 'Algorithm Integration', 'A', '"AI" là viết tắt của "Artificial Intelligence" (Trí tuệ nhân tạo).'),

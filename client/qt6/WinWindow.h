@@ -7,12 +7,14 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+class NetworkClient;
+
 class WinWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    explicit WinWindow(const QString &username, int score, QWidget *parent = nullptr);
+    explicit WinWindow(const QString &username, int score, NetworkClient *client, QWidget *parent = nullptr);
     ~WinWindow();
 
 private slots:
@@ -28,6 +30,7 @@ private:
     QVBoxLayout *m_layout;
     QString m_username;
     int m_score;
+    NetworkClient *m_client;
 };
 
 #endif // WINWINDOW_H

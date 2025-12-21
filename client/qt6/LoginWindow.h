@@ -17,6 +17,7 @@ class LoginWindow : public QMainWindow
 public:
     LoginWindow(QWidget *parent = nullptr);
     ~LoginWindow();
+    NetworkClient* getNetworkClient() const;
 
 private slots:
     void onConnectClicked();

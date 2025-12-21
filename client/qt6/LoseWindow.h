@@ -7,12 +7,14 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+class NetworkClient;
+
 class LoseWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    explicit LoseWindow(const QString &username, int questionsAnswered, QWidget *parent = nullptr);
+    explicit LoseWindow(const QString &username, int questionsAnswered, NetworkClient *client, QWidget *parent = nullptr);
     ~LoseWindow();
 
 private slots:
@@ -28,6 +30,7 @@ private:
     QVBoxLayout *m_layout;
     QString m_username;
     int m_questionsAnswered;
+    NetworkClient *m_client;
 };
 
 #endif // LOSEWINDOW_H
