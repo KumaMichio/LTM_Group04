@@ -1,0 +1,30 @@
+#ifndef DAO_FRIENDS_H
+#define DAO_FRIENDS_H
+
+#include <stdbool.h>
+#include <stdint.h>
+
+// Trạng thái bạn bè
+typedef enum {
+    FRIEND_STATUS_PENDING,
+    FRIEND_STATUS_ACCEPTED,
+    FRIEND_STATUS_DECLINED,
+    FRIEND_STATUS_BLOCKED
+} friend_status_t;
+
+int dao_friends_send_request(int64_t from_user, int64_t to_user);
+int dao_friends_respond_request(int64_t from_user, int64_t to_user, bool accept);
+int dao_friends_list(int64_t user_id, /* OUT */ void **result_json);
+int dao_friends_update_status(int64_t user_id, int64_t friend_id, friend_status_t status);
+
+// Get pending friend requests (incoming)
+int dao_friends_get_pending_requests(int64_t user_id, void **result_json);
+
+// Get friend info with online status
+// Returns JSON with user info + online status + current room_id (if in room)
+int dao_friends_get_info(int64_t user_id, int64_t friend_id, void **result_json);
+
+// Check if two users are friends
+int dao_friends_are_friends(int64_t user_id, int64_t friend_id, bool *are_friends);
+
+#endif
