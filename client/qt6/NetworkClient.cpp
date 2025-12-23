@@ -481,6 +481,11 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
                 emit errorOccurred("Tạo phòng thất bại: " + obj["error"].toString());
             } else if (obj.contains("room_id")) {
                 qint64 roomId = obj["room_id"].toVariant().toLongLong();
+                // If response contains members, emit room update
+                if (obj.contains("members")) {
+                    QJsonArray members = obj["members"].toArray();
+                    emit oneVNRoomUpdate(members);
+                }
                 emit oneVNRoomCreated(roomId);
             }
             break;
@@ -489,6 +494,11 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
             if (obj.contains("error")) {
                 emit oneVNRoomJoined(false, obj["error"].toString());
             } else {
+                // If response contains members, emit room update
+                if (obj.contains("members")) {
+                    QJsonArray members = obj["members"].toArray();
+                    emit oneVNRoomUpdate(members);
+                }
                 emit oneVNRoomJoined(true, "");
             }
             break;
@@ -539,7 +549,8 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
                 int score = obj["score"].toInt();
                 int totalScore = obj["total_score"].toInt();
                 bool eliminated = obj["eliminated"].toBool();
-                emit oneVNAnswerResult1VN(correct, score, totalScore, eliminated);
+                bool timeout = obj.contains("timeout") && obj["timeout"].toBool();
+                emit oneVNAnswerResult1VN(correct, score, totalScore, eliminated, timeout);
             }
             break;
 
@@ -560,9 +571,15 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
             break;
 
         case CMD_NOTIFY_ROOM_UPDATE:
+            // Handle both room member updates and leaderboard updates
             if (obj.contains("members")) {
                 QJsonArray members = obj["members"].toArray();
                 emit oneVNRoomUpdate(members);
+            } else if (obj.contains("leaderboard")) {
+                // Leaderboard update during game - emit as room update
+                // OneVNWindow will handle it based on current state
+                QJsonArray leaderboard = obj["leaderboard"].toArray();
+                emit oneVNRoomUpdate(leaderboard);
             }
             break;
 

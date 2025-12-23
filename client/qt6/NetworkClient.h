@@ -70,7 +70,7 @@ signals:
     void oneVNQuestion1VNReceived(int round, int totalRounds, const QString &difficulty,
                                    qint64 questionId, const QString &content,
                                    const QJsonObject &options, int timeLimit);
-    void oneVNAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated);
+    void oneVNAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated, bool timeout = false);
     void oneVNElimination(qint64 userId, int round);
     void oneVNGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard);
 

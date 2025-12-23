@@ -24,6 +24,8 @@ OneVNWindow::OneVNWindow(const QString &username, NetworkClient *client, QWidget
     , m_waitingForAnswer(false)
     , m_questionTimer(nullptr)
     , m_timerUpdateTimer(nullptr)
+    , m_scoreMessageTimer(nullptr)
+    , m_scoreMessageBox(nullptr)
     , m_timeRemaining(15)
 {
     setWindowTitle("1vN Mode - Ai là triệu phú");
@@ -465,7 +467,9 @@ void OneVNWindow::setupGameScreen()
     m_gameOptionD = new QPushButton("D:", questionWidget);
     
     QList<QPushButton*> buttons = {m_gameOptionA, m_gameOptionB, m_gameOptionC, m_gameOptionD};
-    QStringList colors = {"#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3"};
+    // All buttons use yellow color
+    QString yellowColor = "#FFD700";  // Gold yellow
+    QString yellowHover = "#FFE44D";  // Lighter yellow for hover
     
     for (int i = 0; i < buttons.size(); i++) {
         QPushButton *btn = buttons[i];
@@ -475,12 +479,11 @@ void OneVNWindow::setupGameScreen()
         btnFont.setBold(true);
         btn->setFont(btnFont);
         
-        QString color = colors[i];
         btn->setStyleSheet(
             QString("QPushButton {"
                     "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
                     "        stop:0 %1, stop:1 %2);"
-                    "    color: white;"
+                    "    color: #333333;"
                     "    border: none;"
                     "    border-radius: 12px;"
                     "    padding: 15px;"
@@ -492,7 +495,7 @@ void OneVNWindow::setupGameScreen()
                     "QPushButton:disabled {"
                     "    background-color: #cccccc;"
                     "    color: #666666;"
-                    "}").arg(color, color, color, color)
+                    "}").arg(yellowColor, yellowColor, yellowHover, yellowHover)
         );
         connect(btn, &QPushButton::clicked, this, &OneVNWindow::onAnswerClicked);
     }
@@ -699,6 +702,23 @@ void OneVNWindow::onRoomCreated(qint64 roomId)
     showScreen(WAITING_ROOM);
     m_startGameButton->setEnabled(true);
     m_waitingStatusLabel->setText("Bạn là owner. Bấm 'Bắt đầu game' khi đã có đủ người chơi (tối thiểu 2 người).");
+    
+    // Request room members to populate the list
+    // The server should send room update, but we can also request it
+    // For now, add the owner to the list
+    m_membersList->clear();
+    m_players.clear();
+    
+    PlayerInfo owner;
+    owner.userId = m_userId;
+    owner.username = m_username;
+    owner.score = 0;
+    owner.eliminated = false;
+    owner.rank = 0;
+    m_players.append(owner);
+    
+    QString displayText = m_username + " (Owner)";
+    m_membersList->addItem(displayText);
 }
 
 void OneVNWindow::onRoomJoined(bool success, const QString &error)
@@ -723,14 +743,26 @@ void OneVNWindow::onRoomJoined(bool success, const QString &error)
     showScreen(WAITING_ROOM);
     m_waitingStatusLabel->setText("Đã tham gia phòng. Đang chờ owner bắt đầu game...");
     
-    // Clear members list (will be populated when game starts or room update arrives)
+    // Clear members list (will be populated when room update arrives)
     m_membersList->clear();
+    m_players.clear();
 }
 
 void OneVNWindow::onRoomUpdate(const QJsonArray &members)
 {
-    // This is called when server broadcasts room updates
-    // Currently server doesn't broadcast this, but we handle it for future implementation
+    // Check if this is a leaderboard update (during game) or room member update (waiting room)
+    if (m_currentState == GAME_PLAYING && members.size() > 0) {
+        // This might be a leaderboard update during game
+        // Check if first element has "rank" or "score" field (leaderboard format)
+        QJsonObject first = members[0].toObject();
+        if (first.contains("rank") || (first.contains("score") && first.contains("user_id"))) {
+            // This is a leaderboard update
+            updateLeaderboard(members);
+            return;
+        }
+    }
+    
+    // This is a room member update (waiting room)
     m_membersList->clear();
     m_players.clear();
     
@@ -742,6 +774,10 @@ void OneVNWindow::onRoomUpdate(const QJsonArray &members)
         QString displayText = username;
         if (userId == m_userId) {
             displayText += " (Bạn)";
+        }
+        // Check if this is the owner (first member or has owner flag)
+        if (m_isOwner && userId == m_userId) {
+            displayText += " (Owner)";
         }
         
         m_membersList->addItem(displayText);
@@ -809,8 +845,36 @@ void OneVNWindow::onQuestion1VNReceived(int round, int totalRounds, const QStrin
                                          qint64 questionId, const QString &content,
                                          const QJsonObject &options, int timeLimit)
 {
-    if (m_eliminated) {
-        return; // Don't show question if eliminated
+    // No elimination - all players receive all questions
+    
+    // When new question arrives, it means all players have answered the previous question
+    // Close previous score message box after 2 seconds delay (to ensure all players see their score)
+    // This ensures the message box stays visible until the last player answers + 2 seconds
+    if (m_scoreMessageBox) {
+        // Stop the old timer if it exists
+        if (m_scoreMessageTimer) {
+            m_scoreMessageTimer->stop();
+            m_scoreMessageTimer->deleteLater();
+            m_scoreMessageTimer = nullptr;
+        }
+        
+        // Create a new timer to close the message box after 2 seconds
+        // This gives time for all players to see their scores
+        m_scoreMessageTimer = new QTimer(this);
+        m_scoreMessageTimer->setSingleShot(true);
+        m_scoreMessageTimer->setInterval(2000);  // 2 seconds after new question arrives
+        connect(m_scoreMessageTimer, &QTimer::timeout, this, [this]() {
+            if (m_scoreMessageBox) {
+                m_scoreMessageBox->close();
+                m_scoreMessageBox->deleteLater();
+                m_scoreMessageBox = nullptr;
+            }
+            if (m_scoreMessageTimer) {
+                m_scoreMessageTimer->deleteLater();
+                m_scoreMessageTimer = nullptr;
+            }
+        });
+        m_scoreMessageTimer->start();
     }
     
     m_currentRound = round;
@@ -828,6 +892,9 @@ void OneVNWindow::onQuestion1VNReceived(int round, int totalRounds, const QStrin
     m_currentQuestion.optionC = options["C"].toString();
     m_currentQuestion.optionD = options["D"].toString();
     
+    // Reset button styles to yellow before showing new question
+    resetButtonStyles();
+    
     // Update UI
     m_gameRoundLabel->setText(QString("Câu hỏi: %1/%2 (%3)").arg(round).arg(totalRounds).arg(difficulty));
     m_gameQuestionLabel->setText(content);
@@ -841,7 +908,7 @@ void OneVNWindow::onQuestion1VNReceived(int round, int totalRounds, const QStrin
     m_waitingForAnswer = false;
     m_selectedAnswer.clear();
     
-    // Start timer
+    // Start timer (15 seconds starts NOW when question is received)
     if (m_questionTimer) {
         m_questionTimer->stop();
         delete m_questionTimer;
@@ -864,7 +931,7 @@ void OneVNWindow::onQuestion1VNReceived(int round, int totalRounds, const QStrin
     updateTimer(); // Initial update
 }
 
-void OneVNWindow::onAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated)
+void OneVNWindow::onAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated, bool timeout)
 {
     m_waitingForAnswer = false;
     m_myScore = totalScore;
@@ -878,43 +945,102 @@ void OneVNWindow::onAnswerResult1VN(bool correct, int score, int totalScore, boo
         m_timerUpdateTimer->stop();
     }
     
-    // Highlight answer
-    QPushButton *selectedBtn = nullptr;
-    if (m_selectedAnswer == "A") selectedBtn = m_gameOptionA;
-    else if (m_selectedAnswer == "B") selectedBtn = m_gameOptionB;
-    else if (m_selectedAnswer == "C") selectedBtn = m_gameOptionC;
-    else if (m_selectedAnswer == "D") selectedBtn = m_gameOptionD;
-    
-    if (selectedBtn) {
-        if (correct) {
-            selectedBtn->setStyleSheet(selectedBtn->styleSheet() + 
-                "QPushButton { background-color: #4CAF50 !important; }");
-        } else {
-            selectedBtn->setStyleSheet(selectedBtn->styleSheet() + 
-                "QPushButton { background-color: #f44336 !important; }");
+    // Highlight answer (only if not timeout - timeout means no answer was selected)
+    if (!timeout) {
+        QPushButton *selectedBtn = nullptr;
+        if (m_selectedAnswer == "A") selectedBtn = m_gameOptionA;
+        else if (m_selectedAnswer == "B") selectedBtn = m_gameOptionB;
+        else if (m_selectedAnswer == "C") selectedBtn = m_gameOptionC;
+        else if (m_selectedAnswer == "D") selectedBtn = m_gameOptionD;
+        
+        if (selectedBtn) {
+            if (correct) {
+                selectedBtn->setStyleSheet(
+                    "QPushButton {"
+                    "    background-color: #4CAF50 !important;"
+                    "    color: white !important;"
+                    "    border: none;"
+                    "    border-radius: 12px;"
+                    "    padding: 15px;"
+                    "}"
+                );
+            } else {
+                selectedBtn->setStyleSheet(
+                    "QPushButton {"
+                    "    background-color: #f44336 !important;"
+                    "    color: white !important;"
+                    "    border: none;"
+                    "    border-radius: 12px;"
+                    "    padding: 15px;"
+                    "}"
+                );
+            }
         }
     }
     
     disableAllButtons();
     
-    if (eliminated) {
-        QMessageBox::information(this, "Bị loại", 
-            QString("Bạn đã bị loại!\nĐiểm số cuối cùng: %1").arg(totalScore));
+    // Close previous message box if exists
+    if (m_scoreMessageBox) {
+        m_scoreMessageBox->close();
+        m_scoreMessageBox->deleteLater();
+        m_scoreMessageBox = nullptr;
     }
+    
+    // Stop previous timer if exists
+    if (m_scoreMessageTimer) {
+        m_scoreMessageTimer->stop();
+        m_scoreMessageTimer->deleteLater();
+    }
+    
+    // Show score message after answering with black text color
+    QString message;
+    if (timeout) {
+        message = QString("⏱ Hết thời gian!\nKhông trả lời: 0 điểm\nTổng điểm: %1 điểm")
+                  .arg(totalScore);
+    } else if (correct) {
+        message = QString("✓ Đáp án đúng!\nĐiểm câu này: %1 điểm\nTổng điểm: %2 điểm")
+                  .arg(score).arg(totalScore);
+    } else {
+        message = QString("✗ Đáp án sai!\nTổng điểm: %1 điểm").arg(totalScore);
+    }
+    
+    // Create non-modal message box
+    m_scoreMessageBox = new QMessageBox(this);
+    m_scoreMessageBox->setWindowTitle("Kết quả");
+    m_scoreMessageBox->setText(message);
+    m_scoreMessageBox->setStyleSheet("QLabel { color: black; }");
+    m_scoreMessageBox->setStandardButtons(QMessageBox::Ok);
+    m_scoreMessageBox->setModal(false);  // Non-modal so it doesn't block
+    m_scoreMessageBox->show();
+    
+    // Create timer to auto-close after a long time (will be closed when new question arrives)
+    // The message box will stay visible until the last player answers + 2 seconds
+    // (new question is only sent after all players answer, so we close it when new question arrives)
+    // Set a very long timeout as fallback (30 seconds), but it will be closed earlier when new question arrives
+    m_scoreMessageTimer = new QTimer(this);
+    m_scoreMessageTimer->setSingleShot(true);
+    m_scoreMessageTimer->setInterval(30000);  // 30 seconds fallback (should never reach this)
+    connect(m_scoreMessageTimer, &QTimer::timeout, this, [this]() {
+        if (m_scoreMessageBox) {
+            m_scoreMessageBox->close();
+            m_scoreMessageBox->deleteLater();
+            m_scoreMessageBox = nullptr;
+        }
+        if (m_scoreMessageTimer) {
+            m_scoreMessageTimer->deleteLater();
+            m_scoreMessageTimer = nullptr;
+        }
+    });
+    m_scoreMessageTimer->start();
 }
 
 void OneVNWindow::onElimination(qint64 userId, int round)
 {
-    // Update player elimination status
-    for (PlayerInfo &player : m_players) {
-        if (player.userId == userId) {
-            player.eliminated = true;
-            break;
-        }
-    }
-    
-    // Update leaderboard if we have current data
-    // (Leaderboard will be updated when next question arrives or game ends)
+    // No elimination - players continue playing
+    // This function is kept for compatibility but does nothing
+    (void)userId;
+    (void)round;
 }
 
 void OneVNWindow::onGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard)
@@ -966,9 +1092,7 @@ void OneVNWindow::onGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard)
         }
         
         QString displayText = QString("#%1 - %2: %3 điểm").arg(rank).arg(username).arg(score);
-        if (eliminated) {
-            displayText += " (Đã loại)";
-        }
+        // No elimination display - all players finish the game
         if (userId == m_userId) {
             displayText += " ← Bạn";
         }
@@ -982,7 +1106,8 @@ void OneVNWindow::onGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard)
 // Game actions
 void OneVNWindow::onAnswerClicked()
 {
-    if (m_waitingForAnswer || m_eliminated || m_sessionId == 0) {
+    // No elimination check - all players can always answer
+    if (m_waitingForAnswer || m_sessionId == 0) {
         return;
     }
     
@@ -1055,9 +1180,7 @@ void OneVNWindow::updateLeaderboard(const QJsonArray &leaderboard)
         // Use local players data if available
         for (const PlayerInfo &player : m_players) {
             QString displayText = QString("%1: %2 điểm").arg(player.username).arg(player.score);
-            if (player.eliminated) {
-                displayText += " (Đã loại)";
-            }
+            // No elimination display - all players continue
             if (player.userId == m_userId) {
                 displayText += " ← Bạn";
             }
@@ -1085,9 +1208,7 @@ void OneVNWindow::updateLeaderboard(const QJsonArray &leaderboard)
         }
         
         QString displayText = QString("#%1 - %2: %3 điểm").arg(rank).arg(username).arg(score);
-        if (eliminated) {
-            displayText += " ❌";
-        }
+        // No elimination display - all players continue
         if (userId == m_userId) {
             displayText += " ← Bạn";
         }
@@ -1098,17 +1219,17 @@ void OneVNWindow::updateLeaderboard(const QJsonArray &leaderboard)
 
 void OneVNWindow::resetButtonStyles()
 {
-    // Reset button styles to default
-    QStringList colors = {"#FF6B6B", "#4ECDC4", "#FFE66D", "#95E1D3"};
+    // Reset button styles to default (all yellow)
+    QString yellowColor = "#FFD700";  // Gold yellow
+    QString yellowHover = "#FFE44D";  // Lighter yellow for hover
     QList<QPushButton*> buttons = {m_gameOptionA, m_gameOptionB, m_gameOptionC, m_gameOptionD};
     
     for (int i = 0; i < buttons.size(); i++) {
-        QString color = colors[i];
         buttons[i]->setStyleSheet(
             QString("QPushButton {"
                     "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
                     "        stop:0 %1, stop:1 %2);"
-                    "    color: white;"
+                    "    color: #333333;"
                     "    border: none;"
                     "    border-radius: 12px;"
                     "    padding: 15px;"
@@ -1120,7 +1241,7 @@ void OneVNWindow::resetButtonStyles()
                     "QPushButton:disabled {"
                     "    background-color: #cccccc;"
                     "    color: #666666;"
-                    "}").arg(color, color, color, color)
+                    "}").arg(yellowColor, yellowColor, yellowHover, yellowHover)
         );
     }
 }

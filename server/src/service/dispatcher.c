@@ -44,10 +44,21 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                     if (dao_rooms_create(sess->user_id, &room_id) == 0) {
                         // Set room_id in session
                         session_manager_set_room(sess, room_id);
-                        // trả về info room
-                        char buf[128];
-                        snprintf(buf, sizeof(buf), "{\"room_id\": %ld}", room_id);
-                        protocol_send_response(sess, CMD_RES_CREATE_ROOM, buf, strlen(buf));
+                        
+                        // Get room members and send back with members list
+                        void *members_json = NULL;
+                        if (dao_rooms_get_members(room_id, &members_json) == 0) {
+                            char buf[2048];
+                            snprintf(buf, sizeof(buf), "{\"room_id\": %ld, \"members\": %s}", 
+                                    room_id, (char*)members_json);
+                            protocol_send_response(sess, CMD_RES_CREATE_ROOM, buf, strlen(buf));
+                            free(members_json);
+                        } else {
+                            // Fallback
+                            char buf[128];
+                            snprintf(buf, sizeof(buf), "{\"room_id\": %ld}", room_id);
+                            protocol_send_response(sess, CMD_RES_CREATE_ROOM, buf, strlen(buf));
+                        }
                     } else {
                         protocol_send_error(sess, CMD_RES_CREATE_ROOM, "CREATE_ROOM_FAILED");
                     }
@@ -67,6 +78,14 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                                 "{\"room_id\": %lld, \"members\": %s}", 
                                 room_id, (char*)members_json);
                             protocol_send_response(sess, CMD_RES_JOIN_ROOM, response_buf, strlen(response_buf));
+                            
+                            // Broadcast room update to all members in the room
+                            char notify_buf[2048];
+                            snprintf(notify_buf, sizeof(notify_buf), 
+                                "{\"members\": %s}", (char*)members_json);
+                            session_manager_broadcast_to_room(room_id, CMD_NOTIFY_ROOM_UPDATE, 
+                                                              notify_buf, strlen(notify_buf));
+                            
                             free(members_json);
                         } else {
                             // Fallback if can't get members
@@ -75,7 +94,6 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                                 "{\"room_id\": %lld, \"status\": \"success\"}", room_id);
                             protocol_send_response(sess, CMD_RES_JOIN_ROOM, response_buf, strlen(response_buf));
                         }
-                        // broadcast NOTIFY_ROOM_UPDATE cho các member
                     } else {
                         protocol_send_error(sess, CMD_RES_JOIN_ROOM, "JOIN_ROOM_FAILED");
                     }

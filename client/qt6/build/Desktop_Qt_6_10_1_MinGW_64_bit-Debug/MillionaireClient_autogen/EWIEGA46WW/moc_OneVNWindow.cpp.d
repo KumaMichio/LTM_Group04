@@ -197,6 +197,7 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QLineEdit \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QListWidget \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QMainWindow \
+  C:/Qt/6.10.1/mingw_64/include/QtWidgets/QMessageBox \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QPushButton \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QSpinBox \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/QStackedWidget \
@@ -209,6 +210,8 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qabstractslider.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qabstractspinbox.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qboxlayout.h \
+  C:/Qt/6.10.1/mingw_64/include/QtWidgets/qdialog.h \
+  C:/Qt/6.10.1/mingw_64/include/QtWidgets/qdialogbuttonbox.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qframe.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qgridlayout.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qlabel.h \
@@ -218,6 +221,7 @@ C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qlistview.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qlistwidget.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qmainwindow.h \
+  C:/Qt/6.10.1/mingw_64/include/QtWidgets/qmessagebox.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qpushbutton.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qrubberband.h \
   C:/Qt/6.10.1/mingw_64/include/QtWidgets/qsizepolicy.h \

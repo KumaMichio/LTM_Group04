@@ -36,6 +36,10 @@ typedef struct OneVNGameState {
     int *player_eliminated;
     int64_t *player_answered_round;  // Track which round each player last answered
     int timer_id;  // Timer ID for current round
+    // Track used question IDs to prevent duplicates
+    int64_t *used_question_ids;
+    int used_question_count;
+    int used_question_capacity;
 } OneVNGameState;
 
 // Forward declarations
@@ -103,6 +107,7 @@ static void free_game_state(OneVNGameState *state) {
     if (state->player_consecutive_correct) free(state->player_consecutive_correct);
     if (state->player_eliminated) free(state->player_eliminated);
     if (state->player_answered_round) free(state->player_answered_round);
+    if (state->used_question_ids) free(state->used_question_ids);
     free(state);
 }
 
@@ -132,10 +137,15 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
     state->player_eliminated = calloc(player_count, sizeof(int));
     state->player_answered_round = calloc(player_count, sizeof(int64_t));
     state->timer_id = -1;
+    
+    // Initialize duplicate question tracking
+    state->used_question_capacity = state->total_rounds + 10;  // Extra capacity
+    state->used_question_ids = calloc(state->used_question_capacity, sizeof(int64_t));
+    state->used_question_count = 0;
 
     if (!state->player_ids || !state->player_scores || 
         !state->player_consecutive_correct || !state->player_eliminated ||
-        !state->player_answered_round) {
+        !state->player_answered_round || !state->used_question_ids) {
         free_game_state(state);
         return NULL;
     }
@@ -200,10 +210,10 @@ static char *build_leaderboard_json(OneVNGameState *state) {
     for (int i = 0; i < state->player_count; i++) {
         int idx = indices[i];
         int rank = i + 1;
+        // No elimination - all players continue, eliminated always false
         int need = snprintf(NULL, 0, 
-            "{\"rank\":%d,\"user_id\":%ld,\"score\":%d,\"eliminated\":%s}",
-            rank, state->player_ids[idx], state->player_scores[idx],
-            state->player_eliminated[idx] ? "true" : "false");
+            "{\"rank\":%d,\"user_id\":%ld,\"score\":%d,\"eliminated\":false}",
+            rank, state->player_ids[idx], state->player_scores[idx]);
         
         if (used + (size_t)need + 3 >= cap) {
             cap = (used + (size_t)need + 3) * 2;
@@ -214,9 +224,8 @@ static char *build_leaderboard_json(OneVNGameState *state) {
 
         if (i > 0) used += snprintf(json + used, cap - used, ",");
         used += snprintf(json + used, cap - used,
-            "{\"rank\":%d,\"user_id\":%ld,\"score\":%d,\"eliminated\":%s}",
-            rank, state->player_ids[idx], state->player_scores[idx],
-            state->player_eliminated[idx] ? "true" : "false");
+            "{\"rank\":%d,\"user_id\":%ld,\"score\":%d,\"eliminated\":false}",
+            rank, state->player_ids[idx], state->player_scores[idx]);
     }
 
     used += snprintf(json + used, cap - used, "]");
@@ -226,34 +235,12 @@ static char *build_leaderboard_json(OneVNGameState *state) {
 
 // Helper: Check game end conditions
 static int check_game_end(OneVNGameState *state, int64_t *winner_id) {
-    int active_players = 0;
-    int last_active_idx = -1;
-
-    for (int i = 0; i < state->player_count; i++) {
-        if (!state->player_eliminated[i]) {
-            active_players++;
-            last_active_idx = i;
-        }
-    }
-
-    // Only 1 player left -> winner
-    if (active_players == 1) {
-        *winner_id = state->player_ids[last_active_idx];
-        return 1;
-    }
-
-    // No active players -> no winner
-    if (active_players == 0) {
-        *winner_id = 0;
-        return 1;
-    }
-
-    // All questions done -> highest score wins
+    // All questions done -> highest score wins (no elimination, all players finish)
     if (state->current_round >= state->total_rounds) {
         int max_score = -1;
         int winner_idx = -1;
         for (int i = 0; i < state->player_count; i++) {
-            if (!state->player_eliminated[i] && state->player_scores[i] > max_score) {
+            if (state->player_scores[i] > max_score) {
                 max_score = state->player_scores[i];
                 winner_idx = i;
             }
@@ -479,8 +466,17 @@ static void handle_submit_answer_1vn(ClientSession *sess, const char *payload, u
         return;
     }
 
+    // Validate round matches current round - use server's current_round as source of truth
+    if (round != state->current_round) {
+        printf("[ONEVN] WARNING: Round mismatch - client sent round=%ld, server current_round=%d, using server round\n",
+               (long)round, state->current_round);
+        fflush(stdout);
+    }
+    // Always use server's current_round to ensure consistency
+    int64_t server_round = state->current_round;
+    
     // Check if already answered this round
-    if (state->player_answered_round[player_idx] == round) {
+    if (state->player_answered_round[player_idx] == server_round) {
         protocol_send_error(sess, CMD_RES_SUBMIT_ANSWER_1VN, "ALREADY_ANSWERED");
         return;
     }
@@ -499,12 +495,13 @@ static void handle_submit_answer_1vn(ClientSession *sess, const char *payload, u
         state->player_scores[player_idx] += score;
         state->player_consecutive_correct[player_idx]++;
     } else {
-        // Wrong answer -> eliminated
-        state->player_eliminated[player_idx] = 1;
+        // Wrong answer -> no points, reset consecutive correct
+        // No elimination - players continue playing
         state->player_consecutive_correct[player_idx] = 0;
     }
 
-    state->player_answered_round[player_idx] = round;
+    // Use server's current_round, not round from request
+    state->player_answered_round[player_idx] = server_round;
 
     // Update database
     char *leaderboard = build_leaderboard_json(state);
@@ -517,51 +514,72 @@ static void handle_submit_answer_1vn(ClientSession *sess, const char *payload, u
     // Send response
     char response[512];
     snprintf(response, sizeof(response),
-        "{\"correct\":%s,\"score\":%d,\"total_score\":%d,\"eliminated\":%s}",
+        "{\"correct\":%s,\"score\":%d,\"total_score\":%d,\"eliminated\":false}",
         is_correct ? "true" : "false",
         is_correct ? calculate_score(state->current_difficulty, (time_left / 15.0) * 100.0, 
                                     state->player_consecutive_correct[player_idx] - 1) : 0,
-        state->player_scores[player_idx],
-        state->player_eliminated[player_idx] ? "true" : "false");
+        state->player_scores[player_idx]);
     protocol_send_response(sess, CMD_RES_SUBMIT_ANSWER_1VN, response, strlen(response));
-
-    // Broadcast elimination notification if player was eliminated
-    if (state->player_eliminated[player_idx]) {
-        char elim_json[128];
-        snprintf(elim_json, sizeof(elim_json),
-            "{\"user_id\":%ld,\"round\":%ld}",
-            sess->user_id, round);
-        session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_ELIMINATION,
-                                          elim_json, strlen(elim_json));
-    }
     
-    // Check if all players have answered or game should end
+    // Check if all players have answered (no elimination check - all players continue)
+    // Use state->current_round as source of truth
     int all_answered = 1;
+    printf("[ONEVN] ========== Checking if all players answered round %d ==========\n", state->current_round);
+    printf("[ONEVN] Player who just answered: user_id=%ld, player_idx=%d\n", 
+           (long)sess->user_id, player_idx);
     for (int i = 0; i < state->player_count; i++) {
-        if (!state->player_eliminated[i] && 
-            state->player_answered_round[i] != round) {
+        int has_answered = (state->player_answered_round[i] == state->current_round);
+        printf("[ONEVN]   Player[%d] user_id=%ld: answered_round=%ld, current_round=%d, has_answered=%s\n",
+               i, (long)state->player_ids[i], (long)state->player_answered_round[i], 
+               state->current_round, has_answered ? "YES" : "NO");
+        if (!has_answered) {
             all_answered = 0;
-            break;
         }
     }
+    printf("[ONEVN] ========== All answered: %s ==========\n", all_answered ? "YES" : "NO");
+    fflush(stdout);
     
-    // If all active players answered, end round and send next question
+    // If all players answered, end round and send next question
     if (all_answered) {
+        printf("[ONEVN] ========== ALL PLAYERS ANSWERED - Moving to next question ==========\n");
+        fflush(stdout);
         // Cancel timer
         if (state->timer_id >= 0) {
             game_timer_cancel(state->timer_id);
             state->timer_id = -1;
         }
         
+        // IMPORTANT: Broadcast leaderboard FIRST before sending next question
+        // This ensures clients see the results before the next question arrives
+        char *leaderboard = build_leaderboard_json(state);
+        if (leaderboard) {
+            char leaderboard_notify[2048];
+            snprintf(leaderboard_notify, sizeof(leaderboard_notify),
+                "{\"leaderboard\": %s}", leaderboard);
+            session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_ROOM_UPDATE,
+                                             leaderboard_notify, strlen(leaderboard_notify));
+            free(leaderboard);
+        }
+        
+        // Small delay to ensure leaderboard is received before next question
+        // In production, use async delay; for now, we'll send immediately
+        // but the broadcast above should complete first
+        
         // Check if game should end
         int64_t winner_id = 0;
         if (check_game_end(state, &winner_id)) {
+            printf("[ONEVN] Game should end, winner_id=%ld\n", (long)winner_id);
+            fflush(stdout);
             end_game(state, winner_id);
         } else {
-            // Send next question after short delay
-            // In production, use async delay; for now, send immediately
+            // Send next question after leaderboard broadcast
+            printf("[ONEVN] Game continues, sending next question...\n");
+            fflush(stdout);
             send_next_question(state);
         }
+    } else {
+        printf("[ONEVN] Not all players answered yet, waiting for more answers...\n");
+        fflush(stdout);
     }
 }
 
@@ -570,21 +588,60 @@ static void round_timeout_callback(int64_t context_id, void *user_data) {
     OneVNGameState *state = (OneVNGameState *)user_data;
     if (!state || state->session_id != context_id) return;
     
-    // Mark all players who haven't answered as eliminated
+    printf("[ONEVN] ========== TIMEOUT CALLBACK TRIGGERED for round %d ==========\n", state->current_round);
+    fflush(stdout);
+    
+    // Mark all players who haven't answered as no points (but not eliminated)
+    // Also send timeout notification to each player who didn't answer
     for (int i = 0; i < state->player_count; i++) {
-        if (!state->player_eliminated[i] && 
-            state->player_answered_round[i] != state->current_round) {
-            state->player_eliminated[i] = 1;
+        if (state->player_answered_round[i] != state->current_round) {
+            // Timeout - no points for this round, reset consecutive correct
             state->player_consecutive_correct[i] = 0;
+            // Mark as answered to prevent double processing
+            state->player_answered_round[i] = state->current_round;
+            
+            // Send timeout notification to this player
+            ClientSession *player_sess = session_manager_get_by_user_id(state->player_ids[i]);
+            if (player_sess) {
+                char timeout_response[512];
+                snprintf(timeout_response, sizeof(timeout_response),
+                    "{\"correct\":false,\"score\":0,\"total_score\":%d,\"eliminated\":false,\"timeout\":true}",
+                    state->player_scores[i]);
+                protocol_send_response(player_sess, CMD_RES_SUBMIT_ANSWER_1VN, 
+                                      timeout_response, strlen(timeout_response));
+                printf("[ONEVN] Sent timeout notification to user_id=%ld (player_idx=%d)\n",
+                       (long)state->player_ids[i], i);
+                fflush(stdout);
+            }
         }
+    }
+    
+    // Update database with current scores
+    char *leaderboard = build_leaderboard_json(state);
+    if (leaderboard) {
+        dao_onevn_update_players(state->session_id, leaderboard);
+    }
+    
+    // IMPORTANT: Broadcast leaderboard FIRST before sending next question
+    if (leaderboard) {
+        char leaderboard_notify[2048];
+        snprintf(leaderboard_notify, sizeof(leaderboard_notify),
+            "{\"leaderboard\": %s}", leaderboard);
+        session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_ROOM_UPDATE,
+                                         leaderboard_notify, strlen(leaderboard_notify));
+        free(leaderboard);
     }
     
     // End round and check game end
     int64_t winner_id = 0;
     if (check_game_end(state, &winner_id)) {
+        printf("[ONEVN] Game should end after timeout, winner_id=%ld\n", (long)winner_id);
+        fflush(stdout);
         end_game(state, winner_id);
     } else {
-        // Send next question
+        // Send next question after leaderboard broadcast
+        printf("[ONEVN] Game continues after timeout, sending next question...\n");
+        fflush(stdout);
         send_next_question(state);
     }
 }
@@ -619,12 +676,59 @@ static void send_next_question(OneVNGameState *state) {
     strncpy(state->current_difficulty, difficulty, 15);
     state->current_round++;
 
-    // Get random question
+    // Get random question (avoid duplicates)
     printf("[ONEVN] Getting random question for difficulty: %s\n", difficulty);
     fflush(stdout);
-    if (dao_question_get_random(difficulty, &state->current_question) != 0) {
-        // Failed to get question - end game
-        printf("[ONEVN] ERROR: Failed to get random question for difficulty %s\n", difficulty);
+    
+    int retries = 0;
+    const int MAX_RETRIES = 100;
+    int success = 0;
+    
+    while (retries < MAX_RETRIES) {
+        if (dao_question_get_random(difficulty, &state->current_question) != 0) {
+            // Failed to get question - end game
+            printf("[ONEVN] ERROR: Failed to get random question for difficulty %s\n", difficulty);
+            fflush(stdout);
+            int64_t winner_id = 0;
+            check_game_end(state, &winner_id);
+            end_game(state, winner_id);
+            return;
+        }
+        
+        // Check if this question ID was already used
+        int is_duplicate = 0;
+        for (int i = 0; i < state->used_question_count; i++) {
+            if (state->used_question_ids[i] == state->current_question.question_id) {
+                is_duplicate = 1;
+                break;
+            }
+        }
+        
+        if (!is_duplicate) {
+            // Add to used list
+            if (state->used_question_count >= state->used_question_capacity) {
+                // Expand capacity
+                state->used_question_capacity *= 2;
+                int64_t *new_list = realloc(state->used_question_ids, 
+                                           state->used_question_capacity * sizeof(int64_t));
+                if (new_list) {
+                    state->used_question_ids = new_list;
+                } else {
+                    // Memory error, but continue with current question
+                    printf("[ONEVN] WARNING: Failed to expand used_question_ids list\n");
+                    fflush(stdout);
+                }
+            }
+            state->used_question_ids[state->used_question_count++] = state->current_question.question_id;
+            success = 1;
+            break;
+        }
+        
+        retries++;
+    }
+    
+    if (!success) {
+        printf("[ONEVN] ERROR: Failed to get unique question after %d retries\n", MAX_RETRIES);
         fflush(stdout);
         int64_t winner_id = 0;
         check_game_end(state, &winner_id);
@@ -676,11 +780,14 @@ static void send_next_question(OneVNGameState *state) {
     if (esc_d) free(esc_d);
 
     // Broadcast to all players in room
-    printf("[ONEVN] Broadcasting question to room %lld: %s\n",
-           (long long)state->room_id, question_json);
+    printf("[ONEVN] Broadcasting question round %d to room %lld (total players: %d)\n",
+           state->current_round, (long long)state->room_id, state->player_count);
+    printf("[ONEVN] Question JSON: %s\n", question_json);
     fflush(stdout);
-    session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_QUESTION_1VN, 
+    int broadcast_count = session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_QUESTION_1VN, 
                                       question_json, strlen(question_json));
+    printf("[ONEVN] Question broadcast sent to %d sessions\n", broadcast_count);
+    fflush(stdout);
     
     // Start timer for 15 seconds
     if (state->timer_id >= 0) {

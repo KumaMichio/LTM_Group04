@@ -72,6 +72,7 @@ template <> constexpr inline auto OneVNWindow::qt_create_metaobjectdata<qt_meta_
         "score",
         "totalScore",
         "eliminated",
+        "timeout",
         "onElimination",
         "userId",
         "onGameOver1VN",
@@ -116,16 +117,21 @@ template <> constexpr inline auto OneVNWindow::qt_create_metaobjectdata<qt_meta_
             { QMetaType::QString, 24 }, { 0x80000000 | 25, 26 }, { QMetaType::Int, 27 },
         }}),
         // Slot 'onAnswerResult1VN'
-        QtMocHelpers::SlotData<void(bool, int, int, bool)>(28, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool, int, int, bool, bool)>(28, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Bool, 29 }, { QMetaType::Int, 30 }, { QMetaType::Int, 31 }, { QMetaType::Bool, 32 },
+            { QMetaType::Bool, 33 },
+        }}),
+        // Slot 'onAnswerResult1VN'
+        QtMocHelpers::SlotData<void(bool, int, int, bool)>(28, 2, QMC::AccessPrivate | QMC::MethodCloned, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 30 }, { QMetaType::Int, 31 }, { QMetaType::Bool, 32 },
         }}),
         // Slot 'onElimination'
-        QtMocHelpers::SlotData<void(qint64, int)>(33, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::LongLong, 34 }, { QMetaType::Int, 21 },
+        QtMocHelpers::SlotData<void(qint64, int)>(34, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 35 }, { QMetaType::Int, 21 },
         }}),
         // Slot 'onGameOver1VN'
-        QtMocHelpers::SlotData<void(qint64, const QJsonArray &)>(35, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::LongLong, 36 }, { 0x80000000 | 15, 37 },
+        QtMocHelpers::SlotData<void(qint64, const QJsonArray &)>(36, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::LongLong, 37 }, { 0x80000000 | 15, 38 },
         }}),
     };
     QtMocHelpers::UintData qt_properties {
@@ -162,9 +168,10 @@ void OneVNWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id,
         case 9: _t->onRoomUpdate((*reinterpret_cast<std::add_pointer_t<QJsonArray>>(_a[1]))); break;
         case 10: _t->onGameStart1VN((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3]))); break;
         case 11: _t->onQuestion1VNReceived((*reinterpret_cast<std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<qint64>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[5])),(*reinterpret_cast<std::add_pointer_t<QJsonObject>>(_a[6])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[7]))); break;
-        case 12: _t->onAnswerResult1VN((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[4]))); break;
-        case 13: _t->onElimination((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2]))); break;
-        case 14: _t->onGameOver1VN((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<QJsonArray>>(_a[2]))); break;
+        case 12: _t->onAnswerResult1VN((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[5]))); break;
+        case 13: _t->onAnswerResult1VN((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[4]))); break;
+        case 14: _t->onElimination((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2]))); break;
+        case 15: _t->onGameOver1VN((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<QJsonArray>>(_a[2]))); break;
         default: ;
         }
     }
@@ -189,14 +196,14 @@ int OneVNWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 15)
+        if (_id < 16)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 15;
+        _id -= 16;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 15)
+        if (_id < 16)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 15;
+        _id -= 16;
     }
     return _id;
 }

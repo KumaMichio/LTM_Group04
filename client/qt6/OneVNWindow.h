@@ -12,6 +12,7 @@
 #include <QStackedWidget>
 #include <QSpinBox>
 #include <QLineEdit>
+#include <QMessageBox>
 #include "NetworkClient.h"
 
 // Forward declaration
@@ -65,7 +66,7 @@ private slots:
     void onQuestion1VNReceived(int round, int totalRounds, const QString &difficulty,
                                 qint64 questionId, const QString &content,
                                 const QJsonObject &options, int timeLimit);
-    void onAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated);
+    void onAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated, bool timeout = false);
     void onElimination(qint64 userId, int round);
     void onGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard);
 
@@ -144,6 +145,8 @@ private:
     bool m_waitingForAnswer;
     QTimer *m_questionTimer;  // Timer for each question (15s)
     QTimer *m_timerUpdateTimer;  // Timer to update UI every second
+    QTimer *m_scoreMessageTimer;  // Timer to auto-close score message (2s)
+    QMessageBox *m_scoreMessageBox;  // Score message box
     int m_timeRemaining;  // Seconds remaining
     QString m_selectedAnswer;
     

@@ -18,6 +18,7 @@
 #include "service/dispatcher.h"
 #include "service/protocol.h"
 #include "service/quickmode_service.h"
+#include "utils/timer.h"
 
 static volatile int running = 1;
 
@@ -108,6 +109,9 @@ int start_server(const char *bind_addr, const char *portstr) {
 	struct epoll_event events[MAX_EPOLL_EVENTS];
 
 	while (running) {
+		// Check and run expired game timers (for 1vN mode timeout handling)
+		game_timer_check_and_run();
+		
 		int nfds = epoll_wait(session_manager_get_epoll_fd(mgr), events, MAX_EPOLL_EVENTS, 100);
 		
 		if (nfds < 0) {
