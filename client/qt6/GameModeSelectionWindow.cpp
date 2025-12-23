@@ -1,5 +1,6 @@
 #include "GameModeSelectionWindow.h"
 #include "QuickModeWindow.h"
+#include "OneVNWindow.h"
 #include "LoginWindow.h"
 #include <QApplication>
 #include <QScreen>
@@ -80,18 +81,28 @@ GameModeSelectionWindow::GameModeSelectionWindow(const QString &username, QWidge
     );
     
     // 1vN button
-    m_oneVNButton = new QPushButton("⚔️ 1vN Mode\nChế độ đối kháng (Sắp ra mắt)", m_centralWidget);
+    m_oneVNButton = new QPushButton("⚔️ 1vN Mode\nChế độ đối kháng", m_centralWidget);
     m_oneVNButton->setMinimumSize(350, 100);
     m_oneVNButton->setFont(buttonFont);
-    m_oneVNButton->setEnabled(false);  // Chưa phát triển
+    m_oneVNButton->setEnabled(true);  // Đã phát triển
     m_oneVNButton->setStyleSheet(
         "QPushButton {"
-        "    background-color: #cccccc;"
-        "    color: #666666;"
-        "    border: 2px dashed #999999;"
+        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "        stop:0 #FF6B6B, stop:1 #ee5a6f);"
+        "    color: white;"
+        "    border: none;"
         "    border-radius: 15px;"
         "    padding: 15px;"
         "    font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "        stop:0 #FF7B7B, stop:1 #FF6B7B);"
+        "    transform: scale(1.02);"
+        "}"
+        "QPushButton:pressed {"
+        "    background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
+        "        stop:0 #ee5a6f, stop:1 #dd4a5f);"
         "}"
     );
     
@@ -149,5 +160,21 @@ void GameModeSelectionWindow::onQuickModeClicked()
 
 void GameModeSelectionWindow::onOneVNModeClicked()
 {
-    QMessageBox::information(this, "Thông báo", "Chế độ 1vN đang được phát triển!");
+    // Get NetworkClient from parent (LoginWindow)
+    LoginWindow *loginWindow = qobject_cast<LoginWindow*>(parent());
+    if (!loginWindow) {
+        QMessageBox::warning(this, "Lỗi", "Không thể lấy NetworkClient!");
+        return;
+    }
+    
+    NetworkClient *client = loginWindow->getNetworkClient();
+    if (!client) {
+        QMessageBox::warning(this, "Lỗi", "NetworkClient không hợp lệ!");
+        return;
+    }
+    
+    // Open 1vN window
+    OneVNWindow *oneVNWindow = new OneVNWindow(m_username, client, this);
+    oneVNWindow->show();
+    this->hide();
 }

@@ -3,5 +3,7 @@
 #include "EWIEGA46WW/moc_LoginWindow.cpp"
 #include "EWIEGA46WW/moc_LoseWindow.cpp"
 #include "EWIEGA46WW/moc_NetworkClient.cpp"
+#include "EWIEGA46WW/moc_OneVNWindow.cpp"
 #include "EWIEGA46WW/moc_QuickModeWindow.cpp"
+#include "EWIEGA46WW/moc_WelcomeWindow.cpp"
 #include "EWIEGA46WW/moc_WinWindow.cpp"

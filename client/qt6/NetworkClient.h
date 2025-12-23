@@ -32,6 +32,13 @@ public:
     void sendSubmitAnswer(qint64 sessionId, int round, const QString &answer);
     void sendUseLifeline(qint64 sessionId, int round);
     
+    // 1vN Mode requests
+    void sendCreateRoom(int easyCount, int mediumCount, int hardCount);
+    void sendJoinRoom(qint64 roomId);
+    void sendLeaveRoom(qint64 roomId);
+    void sendStartGame1VN(qint64 roomId);
+    void sendSubmitAnswer1VN(qint64 sessionId, int round, const QString &answer, double timeLeft);
+    
     quint16 getUserId() const;
 
 signals:
@@ -54,6 +61,18 @@ signals:
     void quickModeLifelineResult(qint64 sessionId, int round, 
                                 const QStringList &remainingOptions, 
                                 const QStringList &removedOptions, int remaining);
+    
+    // 1vN Mode signals
+    void oneVNRoomCreated(qint64 roomId);
+    void oneVNRoomJoined(bool success, const QString &error);
+    void oneVNRoomUpdate(const QJsonArray &members);
+    void oneVNGameStart1VN(qint64 sessionId, qint64 roomId, int totalRounds);
+    void oneVNQuestion1VNReceived(int round, int totalRounds, const QString &difficulty,
+                                   qint64 questionId, const QString &content,
+                                   const QJsonObject &options, int timeLimit);
+    void oneVNAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated);
+    void oneVNElimination(qint64 userId, int round);
+    void oneVNGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard);
 
 private slots:
     void onReadyRead();

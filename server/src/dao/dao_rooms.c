@@ -17,36 +17,8 @@ static const char *room_status_to_str(room_status_t s) {
 }
 
 int dao_rooms_create(int64_t owner_id, int64_t *out_room_id) {
-    PGconn *conn = db_get_conn();
-    if (!conn) return -1;
-
-    const char *sql =
-        "INSERT INTO room (owner_id, status) "
-        "VALUES ($1, 'WAITING') RETURNING room_id;";
-
-    char buf_owner[32];
-    snprintf(buf_owner, sizeof(buf_owner), "%ld", owner_id);
-
-    const char *params[1] = { buf_owner };
-
-    PGresult *res = PQexecParams(conn, sql, 1, NULL, params, NULL, NULL, 0);
-    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
-        fprintf(stderr, "[DAO_ROOMS] create error: %s\n", PQerrorMessage(conn));
-        PQclear(res);
-        return -1;
-    }
-
-    if (PQntuples(res) == 1) {
-        *out_room_id = atoll(PQgetvalue(res, 0, 0));
-    } else {
-        PQclear(res);
-        return -1;
-    }
-    PQclear(res);
-
-    // Thêm owner vào room_members
-    int rc = dao_rooms_join(*out_room_id, owner_id, 1);
-    return rc;
+    // Use default config: 5 easy, 5 medium, 5 hard = 15 questions total
+    return dao_rooms_create_with_config(owner_id, 5, 5, 5, out_room_id);
 }
 
 int dao_rooms_join(int64_t room_id, int64_t user_id, int is_owner) {
@@ -159,7 +131,7 @@ int dao_rooms_update_status(int64_t room_id, room_status_t status) {
     PGconn *conn = db_get_conn();
     if (!conn) return -1;
 
-    const char *sql = "UPDATE rooms SET status = $2 WHERE room_id = $1;";
+    const char *sql = "UPDATE room SET status = $2 WHERE room_id = $1;";
 
     char buf_room[32];
     snprintf(buf_room, sizeof(buf_room), "%ld", room_id);
@@ -171,6 +143,127 @@ int dao_rooms_update_status(int64_t room_id, room_status_t status) {
         PQclear(res);
         return -1;
     }
+    PQclear(res);
+    return 0;
+}
+
+int dao_rooms_create_with_config(int64_t owner_id, int easy_count, int medium_count, int hard_count, int64_t *out_room_id) {
+    PGconn *conn = db_get_conn();
+    if (!conn) return -1;
+
+    const char *sql =
+        "INSERT INTO room (owner_id, status, easy_count, medium_count, hard_count) "
+        "VALUES ($1, 'WAITING', $2, $3, $4) RETURNING room_id;";
+
+    char buf_owner[32], buf_easy[32], buf_medium[32], buf_hard[32];
+    snprintf(buf_owner, sizeof(buf_owner), "%ld", owner_id);
+    snprintf(buf_easy, sizeof(buf_easy), "%d", easy_count);
+    snprintf(buf_medium, sizeof(buf_medium), "%d", medium_count);
+    snprintf(buf_hard, sizeof(buf_hard), "%d", hard_count);
+
+    const char *params[4] = { buf_owner, buf_easy, buf_medium, buf_hard };
+
+    PGresult *res = PQexecParams(conn, sql, 4, NULL, params, NULL, NULL, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        fprintf(stderr, "[DAO_ROOMS] create_with_config error: %s\n", PQerrorMessage(conn));
+        PQclear(res);
+        return -1;
+    }
+
+    if (PQntuples(res) == 1) {
+        *out_room_id = atoll(PQgetvalue(res, 0, 0));
+    } else {
+        PQclear(res);
+        return -1;
+    }
+    PQclear(res);
+
+    // Add owner to room_members
+    int rc = dao_rooms_join(*out_room_id, owner_id, 1);
+    return rc;
+}
+
+int dao_rooms_get_config(int64_t room_id, int *easy_count, int *medium_count, int *hard_count) {
+    PGconn *conn = db_get_conn();
+    if (!conn) return -1;
+
+    const char *sql =
+        "SELECT easy_count, medium_count, hard_count "
+        "FROM room WHERE room_id = $1;";
+
+    char buf_room[32];
+    snprintf(buf_room, sizeof(buf_room), "%ld", room_id);
+    const char *params[1] = { buf_room };
+
+    PGresult *res = PQexecParams(conn, sql, 1, NULL, params, NULL, NULL, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        fprintf(stderr, "[DAO_ROOMS] get_config error: %s\n", PQerrorMessage(conn));
+        PQclear(res);
+        return -1;
+    }
+
+    if (PQntuples(res) == 0) {
+        PQclear(res);
+        return -1;
+    }
+
+    if (easy_count) *easy_count = atoi(PQgetvalue(res, 0, 0));
+    if (medium_count) *medium_count = atoi(PQgetvalue(res, 0, 1));
+    if (hard_count) *hard_count = atoi(PQgetvalue(res, 0, 2));
+
+    PQclear(res);
+    return 0;
+}
+
+int dao_rooms_update_config(int64_t room_id, int easy_count, int medium_count, int hard_count) {
+    PGconn *conn = db_get_conn();
+    if (!conn) return -1;
+
+    const char *sql =
+        "UPDATE room SET easy_count = $2, medium_count = $3, hard_count = $4 "
+        "WHERE room_id = $1;";
+
+    char buf_room[32], buf_easy[32], buf_medium[32], buf_hard[32];
+    snprintf(buf_room, sizeof(buf_room), "%ld", room_id);
+    snprintf(buf_easy, sizeof(buf_easy), "%d", easy_count);
+    snprintf(buf_medium, sizeof(buf_medium), "%d", medium_count);
+    snprintf(buf_hard, sizeof(buf_hard), "%d", hard_count);
+
+    const char *params[4] = { buf_room, buf_easy, buf_medium, buf_hard };
+
+    PGresult *res = PQexecParams(conn, sql, 4, NULL, params, NULL, NULL, 0);
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        fprintf(stderr, "[DAO_ROOMS] update_config error: %s\n", PQerrorMessage(conn));
+        PQclear(res);
+        return -1;
+    }
+    PQclear(res);
+    return 0;
+}
+
+int dao_rooms_get_owner(int64_t room_id, int64_t *owner_id) {
+    PGconn *conn = db_get_conn();
+    if (!conn || !owner_id) return -1;
+
+    const char *sql = "SELECT owner_id FROM room WHERE room_id = $1;";
+
+    char buf_room[32];
+    snprintf(buf_room, sizeof(buf_room), "%ld", room_id);
+    const char *params[1] = { buf_room };
+
+    PGresult *res = PQexecParams(conn, sql, 1, NULL, params, NULL, NULL, 0);
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        fprintf(stderr, "[DAO_ROOMS] get_owner error: %s\n", PQerrorMessage(conn));
+        PQclear(res);
+        return -1;
+    }
+
+    if (PQntuples(res) == 0) {
+        PQclear(res);
+        return -1;
+    }
+
+    *owner_id = atoll(PQgetvalue(res, 0, 0));
     PQclear(res);
     return 0;
 }

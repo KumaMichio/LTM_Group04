@@ -513,9 +513,21 @@
 			null
 		],
 		[
+			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/OneVNWindow.h",
+			"MU",
+			"EWIEGA46WW/moc_OneVNWindow.cpp",
+			null
+		],
+		[
 			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/QuickModeWindow.h",
 			"MU",
 			"EWIEGA46WW/moc_QuickModeWindow.cpp",
+			null
+		],
+		[
+			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/WelcomeWindow.h",
+			"MU",
+			"EWIEGA46WW/moc_WelcomeWindow.cpp",
 			null
 		],
 		[
@@ -618,7 +630,17 @@
 			null
 		],
 		[
+			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/OneVNWindow.cpp",
+			"MU",
+			null
+		],
+		[
 			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/QuickModeWindow.cpp",
+			"MU",
+			null
+		],
+		[
+			"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/WelcomeWindow.cpp",
 			"MU",
 			null
 		],

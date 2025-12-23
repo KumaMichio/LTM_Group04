@@ -10,6 +10,7 @@
 #include "dao/dao_friends.h"
 #include "dao/dao_users.h"
 #include "dao/dao_rooms.h"
+#include "dao/dao_chat.h"
 #include "utils/json.h"
 
 // Helper: Get online status string for a user
@@ -125,6 +126,64 @@ static void handle_get_friend_info(ClientSession *sess, const char *payload) {
     free(info_json);
 }
 
+// Handle add friend request
+static void handle_add_friend(ClientSession *sess, const char *payload) {
+    long long friend_id_ll = 0;
+    if (!util_json_get_int64(payload, "friend_id", &friend_id_ll) || friend_id_ll <= 0) {
+        protocol_send_error(sess, CMD_RES_ADD_FRIEND, "INVALID_FRIEND_ID");
+        return;
+    }
+    int64_t friend_id = (int64_t)friend_id_ll;
+    
+    // Check if trying to add self
+    if (friend_id == sess->user_id) {
+        protocol_send_error(sess, CMD_RES_ADD_FRIEND, "CANNOT_ADD_SELF");
+        return;
+    }
+    
+    // Send friend request
+    if (dao_friends_send_request(sess->user_id, friend_id) != 0) {
+        protocol_send_error(sess, CMD_RES_ADD_FRIEND, "ADD_FRIEND_FAILED");
+        return;
+    }
+    
+    // Send notification to friend if online
+    ClientSession *friend_sess = session_manager_get_by_user_id(friend_id);
+    if (friend_sess) {
+        User sender;
+        if (dao_users_find_by_id(sess->user_id, &sender) == 0) {
+            char notify_json[512];
+            char *esc_username = util_json_escape(sender.username);
+            if (!esc_username) esc_username = strdup("");
+            
+            snprintf(notify_json, sizeof(notify_json),
+                "{\"from_user_id\": %lld, \"from_username\": \"%s\"}",
+                (long long)sess->user_id, esc_username);
+            
+            session_manager_send_to_user(friend_id, CMD_NOTIFY_FRIEND_REQ,
+                notify_json, (uint32_t)strlen(notify_json));
+            
+            free(esc_username);
+        }
+    }
+    
+    // Send success response
+    protocol_send_simple_ok(sess, CMD_RES_ADD_FRIEND);
+}
+
+// Handle list friends
+static void handle_list_friends(ClientSession *sess) {
+    void *result_json = NULL;
+    if (dao_friends_list(sess->user_id, &result_json) != 0) {
+        protocol_send_error(sess, CMD_RES_LIST_FRIENDS, "LIST_FRIENDS_FAILED");
+        return;
+    }
+    
+    const char *json_str = (const char *)result_json;
+    protocol_send_response(sess, CMD_RES_LIST_FRIENDS, json_str, strlen(json_str));
+    free(result_json);
+}
+
 // Handle get pending friend requests
 static void handle_get_pending_requests(ClientSession *sess) {
     void *result_json = NULL;
@@ -227,9 +286,16 @@ static void handle_send_dm(ClientSession *sess, const char *payload) {
     dao_friends_are_friends(sess->user_id, to_user_id, &are_friends);
     // For now, we allow DMs even if not friends
     
+    // Check if user is logged in
+    if (sess->user_id <= 0) {
+        protocol_send_error(sess, CMD_RES_SEND_DM, "NOT_LOGGED_IN");
+        return;
+    }
+    
     // Get sender info
     User sender;
     if (dao_users_find_by_id(sess->user_id, &sender) != 0) {
+        fprintf(stderr, "[FRIENDS] SENDER_NOT_FOUND: user_id=%lld\n", (long long)sess->user_id);
         protocol_send_error(sess, CMD_RES_SEND_DM, "SENDER_NOT_FOUND");
         return;
     }
@@ -240,21 +306,26 @@ static void handle_send_dm(ClientSession *sess, const char *payload) {
     if (!esc_username) esc_username = strdup("");
     if (!esc_message) esc_message = strdup("");
     
+    // Save message to database
+    if (dao_chat_send_dm(sess->user_id, to_user_id, message) != 0) {
+        free(esc_username);
+        free(esc_message);
+        free(message);
+        protocol_send_error(sess, CMD_RES_SEND_DM, "SAVE_MESSAGE_FAILED");
+        return;
+    }
+    
     char dm_json[2048];
     snprintf(dm_json, sizeof(dm_json),
-        "{\"from_user_id\": %ld, \"from_username\": \"%s\", \"message\": \"%s\", \"timestamp\": \"%ld\"}",
-        sess->user_id, esc_username, esc_message, (long)time(NULL));
+        "{\"from_user_id\": %lld, \"from_username\": \"%s\", \"message\": \"%s\", \"timestamp\": %ld}",
+        (long long)sess->user_id, esc_username, esc_message, (long)time(NULL));
     
     // Try to send to user if online
     int sent = session_manager_send_to_user(to_user_id, CMD_NOTIFY_DM,
         dm_json, (uint32_t)strlen(dm_json));
     
-    if (sent > 0) {
-        protocol_send_simple_ok(sess, CMD_RES_SEND_DM);
-    } else {
-        // User is offline - could store in DB for later retrieval
-        protocol_send_error(sess, CMD_RES_SEND_DM, "USER_OFFLINE");
-    }
+    // Always return success if saved to DB, even if user is offline
+    protocol_send_simple_ok(sess, CMD_RES_SEND_DM);
     
     free(esc_username);
     free(esc_message);
@@ -282,10 +353,26 @@ static void handle_send_room_chat(ClientSession *sess, const char *payload) {
         return;
     }
     
+    // Check if user is logged in
+    if (sess->user_id <= 0) {
+        free(message);
+        protocol_send_error(sess, CMD_RES_SEND_ROOM_CHAT, "NOT_LOGGED_IN");
+        return;
+    }
+    
     // Get sender info
     User sender;
     if (dao_users_find_by_id(sess->user_id, &sender) != 0) {
+        free(message);
+        fprintf(stderr, "[FRIENDS] SENDER_NOT_FOUND: user_id=%lld\n", (long long)sess->user_id);
         protocol_send_error(sess, CMD_RES_SEND_ROOM_CHAT, "SENDER_NOT_FOUND");
+        return;
+    }
+    
+    // Save message to database
+    if (dao_chat_send_room(sess->user_id, room_id, message) != 0) {
+        free(message);
+        protocol_send_error(sess, CMD_RES_SEND_ROOM_CHAT, "SAVE_MESSAGE_FAILED");
         return;
     }
     
@@ -297,22 +384,38 @@ static void handle_send_room_chat(ClientSession *sess, const char *payload) {
     
     char chat_json[2048];
     snprintf(chat_json, sizeof(chat_json),
-        "{\"user_id\": %ld, \"username\": \"%s\", \"message\": \"%s\", \"timestamp\": %ld}",
-        sess->user_id, esc_username, esc_message, (long)time(NULL));
+        "{\"user_id\": %lld, \"username\": \"%s\", \"message\": \"%s\", \"timestamp\": %ld}",
+        (long long)sess->user_id, esc_username, esc_message, (long)time(NULL));
     
     // Broadcast to all room members
     int sent = session_manager_broadcast_to_room(room_id, CMD_NOTIFY_ROOM_CHAT,
         chat_json, (uint32_t)strlen(chat_json));
     
-    if (sent > 0) {
-        protocol_send_simple_ok(sess, CMD_RES_SEND_ROOM_CHAT);
-    } else {
-        protocol_send_error(sess, CMD_RES_SEND_ROOM_CHAT, "BROADCAST_FAILED");
-    }
+    // Always return success if saved to DB
+    protocol_send_simple_ok(sess, CMD_RES_SEND_ROOM_CHAT);
     
     free(esc_username);
     free(esc_message);
     free(message);
+}
+
+// Handle fetch offline messages
+static void handle_fetch_offline(ClientSession *sess) {
+    void *json_result = NULL;
+    
+    if (dao_chat_fetch_offline(sess->user_id, &json_result) != 0) {
+        protocol_send_error(sess, CMD_RES_FETCH_OFFLINE, "FETCH_OFFLINE_FAILED");
+        return;
+    }
+    
+    if (json_result) {
+        char *json_str = (char *)json_result;
+        protocol_send_response(sess, CMD_RES_FETCH_OFFLINE, json_str, (uint32_t)strlen(json_str));
+        free(json_result);
+    } else {
+        // No offline messages
+        protocol_send_response(sess, CMD_RES_FETCH_OFFLINE, "[]", 2);
+    }
 }
 
 // Main dispatch function
@@ -322,6 +425,14 @@ void friends_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, ui
     switch (cmd) {
         case CMD_REQ_SEARCH_USER:
             handle_search_user(sess, payload);
+            break;
+            
+        case CMD_REQ_ADD_FRIEND:
+            handle_add_friend(sess, payload);
+            break;
+            
+        case CMD_REQ_LIST_FRIENDS:
+            handle_list_friends(sess);
             break;
             
         case CMD_REQ_GET_FRIEND_INFO:
@@ -342,6 +453,10 @@ void friends_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, ui
             
         case CMD_REQ_SEND_ROOM_CHAT:
             handle_send_room_chat(sess, payload);
+            break;
+            
+        case CMD_REQ_FETCH_OFFLINE:
+            handle_fetch_offline(sess);
             break;
             
         default:

@@ -298,17 +298,41 @@ static void handle_start_game(ClientSession *sess, const char *payload, uint32_t
     // Parse members JSON to get actual member list using improved parser
     int64_t player_ids_temp[32];
     int member_count = util_json_parse_user_id_array((const char *)members_json, player_ids_temp, 32);
+    
+    // Debug: Print to both stderr and include in error message
+    printf("[ONEVN] Room %lld has %d members. Members JSON: %s\n", 
+           (long long)room_id, member_count, (const char *)members_json);
+    fflush(stdout);
 
     // Get room config
     int easy_count = 0, medium_count = 0, hard_count = 0;
     if (dao_rooms_get_config(room_id, &easy_count, &medium_count, &hard_count) != 0) {
-        free(members_json);
-        protocol_send_error(sess, CMD_RES_START_GAME, "GET_CONFIG_FAILED");
-        return;
+        printf("[ONEVN] WARNING: Could not get room config, using defaults (5,5,5)\n");
+        easy_count = 5;
+        medium_count = 5;
+        hard_count = 5;
     }
+    
+    // If config is all zeros, use defaults and update database
+    if (easy_count == 0 && medium_count == 0 && hard_count == 0) {
+        printf("[ONEVN] WARNING: Room config is (0,0,0), updating to defaults (5,5,5)\n");
+        easy_count = 5;
+        medium_count = 5;
+        hard_count = 5;
+        // Update room with default config in database
+        dao_rooms_update_config(room_id, easy_count, medium_count, hard_count);
+    }
+    
+    printf("[ONEVN] Room %lld config: easy=%d, medium=%d, hard=%d (total=%d)\n",
+           (long long)room_id, easy_count, medium_count, hard_count,
+           easy_count + medium_count + hard_count);
+    fflush(stdout);
 
     // Check minimum 2 players
     if (member_count < 2) {
+        printf("[ONEVN] ERROR: NOT_ENOUGH_PLAYERS: member_count=%d, members_json=%s\n",
+               member_count, (const char *)members_json);
+        fflush(stdout);
         free(members_json);
         protocol_send_error(sess, CMD_RES_START_GAME, "NOT_ENOUGH_PLAYERS");
         return;
@@ -375,6 +399,21 @@ static void handle_start_game(ClientSession *sess, const char *payload, uint32_t
         free(players_init);
     }
 
+    // Update sessions' room_id BEFORE broadcasting (important!)
+    for (int i = 0; i < idx; i++) {
+        ClientSession *player_sess = session_manager_get_by_user_id(player_ids[i]);
+        if (player_sess) {
+            session_manager_set_room(player_sess, room_id);
+            printf("[ONEVN] Set room_id=%lld for user_id=%lld\n",
+                   (long long)room_id, (long long)player_ids[i]);
+            fflush(stdout);
+        } else {
+            printf("[ONEVN] WARNING: Could not find session for user_id=%lld\n",
+                   (long long)player_ids[i]);
+            fflush(stdout);
+        }
+    }
+    
     // Broadcast start game notification to all players in room
     char response[256];
     snprintf(response, sizeof(response), 
@@ -384,14 +423,6 @@ static void handle_start_game(ClientSession *sess, const char *payload, uint32_t
     
     // Also send response to owner
     protocol_send_response(sess, CMD_RES_START_GAME, response, strlen(response));
-    
-    // Update sessions' room_id
-    for (int i = 0; i < idx; i++) {
-        ClientSession *player_sess = session_manager_get_by_user_id(player_ids[i]);
-        if (player_sess) {
-            session_manager_set_room(player_sess, room_id);
-        }
-    }
     
     // Send first question after a short delay (in production, use async)
     // For now, we'll send it immediately
@@ -518,7 +549,7 @@ static void handle_submit_answer_1vn(ClientSession *sess, const char *payload, u
     if (all_answered) {
         // Cancel timer
         if (state->timer_id >= 0) {
-            timer_cancel(state->timer_id);
+            game_timer_cancel(state->timer_id);
             state->timer_id = -1;
         }
         
@@ -560,8 +591,14 @@ static void round_timeout_callback(int64_t context_id, void *user_data) {
 
 // Get next question (called by server after round ends)
 static void send_next_question(OneVNGameState *state) {
+    printf("[ONEVN] send_next_question called: current_round=%d, total_rounds=%d\n",
+           state->current_round, state->total_rounds);
+    fflush(stdout);
+    
     if (state->current_round >= state->total_rounds) {
         // Game over - check winner
+        printf("[ONEVN] Game over: current_round >= total_rounds\n");
+        fflush(stdout);
         int64_t winner_id = 0;
         check_game_end(state, &winner_id);
         end_game(state, winner_id);
@@ -571,6 +608,8 @@ static void send_next_question(OneVNGameState *state) {
     const char *difficulty = select_next_difficulty(state);
     if (!difficulty) {
         // No more questions
+        printf("[ONEVN] No more questions available\n");
+        fflush(stdout);
         int64_t winner_id = 0;
         check_game_end(state, &winner_id);
         end_game(state, winner_id);
@@ -581,13 +620,22 @@ static void send_next_question(OneVNGameState *state) {
     state->current_round++;
 
     // Get random question
+    printf("[ONEVN] Getting random question for difficulty: %s\n", difficulty);
+    fflush(stdout);
     if (dao_question_get_random(difficulty, &state->current_question) != 0) {
         // Failed to get question - end game
+        printf("[ONEVN] ERROR: Failed to get random question for difficulty %s\n", difficulty);
+        fflush(stdout);
         int64_t winner_id = 0;
         check_game_end(state, &winner_id);
         end_game(state, winner_id);
         return;
     }
+    
+    printf("[ONEVN] Got question ID: %ld, content: %s\n", 
+           state->current_question.question_id,
+           state->current_question.content ? state->current_question.content : "(null)");
+    fflush(stdout);
 
     // Update counters
     if (strcmp(difficulty, "EASY") == 0) {
@@ -628,14 +676,20 @@ static void send_next_question(OneVNGameState *state) {
     if (esc_d) free(esc_d);
 
     // Broadcast to all players in room
+    printf("[ONEVN] Broadcasting question to room %lld: %s\n",
+           (long long)state->room_id, question_json);
+    fflush(stdout);
     session_manager_broadcast_to_room(state->room_id, CMD_NOTIFY_QUESTION_1VN, 
                                       question_json, strlen(question_json));
     
     // Start timer for 15 seconds
     if (state->timer_id >= 0) {
-        timer_cancel(state->timer_id);
+        game_timer_cancel(state->timer_id);
     }
     state->timer_id = game_timer_create(15, state->session_id, round_timeout_callback, state);
+    
+    printf("[ONEVN] Question sent successfully, timer started\n");
+    fflush(stdout);
 }
 
 // End game and send final results
@@ -644,7 +698,7 @@ static void end_game(OneVNGameState *state, int64_t winner_id) {
     
     // Cancel timer if active
     if (state->timer_id >= 0) {
-        timer_cancel(state->timer_id);
+        game_timer_cancel(state->timer_id);
         state->timer_id = -1;
     }
     

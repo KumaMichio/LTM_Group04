@@ -84,3 +84,93 @@ int util_json_get_int64(const char *json, const char *key, long long *out) {
     *out = v;
     return 1;
 }
+
+int util_json_get_double(const char *json, const char *key, double *out) {
+    if (!json || !key || !out) return 0;
+    const char *p = strstr(json, key);
+    if (!p) return 0;
+    p = strchr(p, ':');
+    if (!p) return 0;
+    ++p;
+    // skip spaces
+    while (*p == ' ' || *p == '\t') ++p;
+    char *end;
+    double v = strtod(p, &end);
+    if (p == end) return 0;
+    *out = v;
+    return 1;
+}
+
+int util_json_parse_user_id_array(const char *json, int64_t *out_ids, int max_count) {
+    if (!json || !out_ids || max_count <= 0) return 0;
+    
+    int count = 0;
+    const char *p = json;
+    
+    // Find opening bracket
+    p = strchr(p, '[');
+    if (!p) return 0;
+    p++;
+    
+    // Check if it's an array of objects (has "user_id" field) or simple numbers
+    const char *check_p = p;
+    int is_object_array = (strstr(check_p, "\"user_id\"") != NULL);
+    
+    if (is_object_array) {
+        // Parse array of objects: [{"user_id": 13, ...}, {"user_id": 14, ...}]
+        while (*p && count < max_count) {
+            // Skip whitespace and commas
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == ',') p++;
+            if (*p == ']') break;
+            
+            // Find start of object
+            const char *obj_start = strchr(p, '{');
+            if (!obj_start) break;
+            
+            // Find end of object
+            const char *obj_end = strchr(obj_start + 1, '}');
+            if (!obj_end) break;
+            
+            // Find "user_id" field in this object (must be between obj_start and obj_end)
+            const char *user_id_str = strstr(obj_start, "\"user_id\"");
+            if (user_id_str && user_id_str < obj_end) {
+                // Find colon after "user_id"
+                user_id_str = strchr(user_id_str, ':');
+                if (user_id_str && user_id_str < obj_end) {
+                    user_id_str++; // Skip colon
+                    // Skip whitespace
+                    while (*user_id_str == ' ' || *user_id_str == '\t') user_id_str++;
+                    // Parse number
+                    char *end;
+                    long long v = strtoll(user_id_str, &end, 10);
+                    if (end != user_id_str && end <= obj_end) {
+                        out_ids[count++] = (int64_t)v;
+                    }
+                }
+            }
+            
+            // Move to after this object
+            p = obj_end + 1;
+        }
+    } else {
+        // Parse simple array of numbers: [1, 2, 3]
+        while (*p && count < max_count) {
+            // Skip whitespace
+            while (*p == ' ' || *p == '\t' || *p == '\n') p++;
+            if (*p == ']') break;
+            
+            // Parse number
+            char *end;
+            long long v = strtoll(p, &end, 10);
+            if (end == p) break; // Not a number
+            
+            out_ids[count++] = (int64_t)v;
+            p = end;
+            
+            // Skip comma or whitespace
+            while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        }
+    }
+    
+    return count;
+}

@@ -23,6 +23,25 @@
 #define CMD_NOTIFY_GAME_OVER       0x0509
 #define CMD_REQ_GET_QUESTION       0x050A
 
+// Room commands
+#define CMD_REQ_CREATE_ROOM        0x0401
+#define CMD_RES_CREATE_ROOM        0x0402
+#define CMD_REQ_JOIN_ROOM          0x0403
+#define CMD_RES_JOIN_ROOM          0x0404
+#define CMD_NOTIFY_ROOM_UPDATE     0x0405
+#define CMD_REQ_LEAVE_ROOM         0x040B
+#define CMD_RES_LEAVE_ROOM         0x040C
+#define CMD_REQ_START_GAME         0x040D
+#define CMD_RES_START_GAME         0x040E
+
+// 1vN commands
+#define CMD_NOTIFY_GAME_START_1VN  0x0601
+#define CMD_NOTIFY_QUESTION_1VN    0x0602
+#define CMD_REQ_SUBMIT_ANSWER_1VN  0x0603
+#define CMD_RES_SUBMIT_ANSWER_1VN  0x0604
+#define CMD_NOTIFY_ELIMINATION     0x0605
+#define CMD_NOTIFY_GAME_OVER_1VN   0x0606
+
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent)
     , m_socket(new QTcpSocket(this))
@@ -209,6 +228,67 @@ void NetworkClient::sendUseLifeline(qint64 sessionId, int round)
     sendPacket(CMD_REQ_USE_LIFELINE, m_userId, json);
 }
 
+// 1vN Mode methods
+void NetworkClient::sendCreateRoom(int easyCount, int mediumCount, int hardCount)
+{
+    QJsonObject obj;
+    obj["easy_count"] = easyCount;
+    obj["medium_count"] = mediumCount;
+    obj["hard_count"] = hardCount;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_CREATE_ROOM, m_userId, json);
+}
+
+void NetworkClient::sendJoinRoom(qint64 roomId)
+{
+    QJsonObject obj;
+    obj["room_id"] = roomId;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_JOIN_ROOM, m_userId, json);
+}
+
+void NetworkClient::sendLeaveRoom(qint64 roomId)
+{
+    QJsonObject obj;
+    obj["room_id"] = roomId;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_LEAVE_ROOM, m_userId, json);
+}
+
+void NetworkClient::sendStartGame1VN(qint64 roomId)
+{
+    QJsonObject obj;
+    obj["room_id"] = roomId;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_START_GAME, m_userId, json);
+}
+
+void NetworkClient::sendSubmitAnswer1VN(qint64 sessionId, int round, const QString &answer, double timeLeft)
+{
+    QJsonObject obj;
+    obj["session_id"] = sessionId;
+    obj["round"] = round;
+    obj["answer"] = answer;
+    obj["time_left"] = timeLeft;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_SUBMIT_ANSWER_1VN, m_userId, json);
+}
+
 void NetworkClient::onReadyRead()
 {
     QByteArray data = m_socket->readAll();
@@ -392,6 +472,97 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
                 }
                 int remaining = obj["lifeline_remaining"].toInt();
                 emit quickModeLifelineResult(sessionId, round, remainingOptions, removedOptions, remaining);
+            }
+            break;
+
+        // Room responses
+        case CMD_RES_CREATE_ROOM:
+            if (obj.contains("error")) {
+                emit errorOccurred("Tạo phòng thất bại: " + obj["error"].toString());
+            } else if (obj.contains("room_id")) {
+                qint64 roomId = obj["room_id"].toVariant().toLongLong();
+                emit oneVNRoomCreated(roomId);
+            }
+            break;
+
+        case CMD_RES_JOIN_ROOM:
+            if (obj.contains("error")) {
+                emit oneVNRoomJoined(false, obj["error"].toString());
+            } else {
+                emit oneVNRoomJoined(true, "");
+            }
+            break;
+
+        case CMD_RES_LEAVE_ROOM:
+            // Handle leave room response if needed
+            break;
+
+        case CMD_RES_START_GAME:
+            if (obj.contains("error")) {
+                emit errorOccurred("Bắt đầu game thất bại: " + obj["error"].toString());
+            } else if (obj.contains("session_id") && obj.contains("room_id") && obj.contains("total_rounds")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                qint64 roomId = obj["room_id"].toVariant().toLongLong();
+                int totalRounds = obj["total_rounds"].toInt();
+                emit oneVNGameStart1VN(sessionId, roomId, totalRounds);
+            }
+            break;
+
+        // 1vN game notifications
+        case CMD_NOTIFY_GAME_START_1VN:
+            if (obj.contains("session_id") && obj.contains("room_id") && obj.contains("total_rounds")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                qint64 roomId = obj["room_id"].toVariant().toLongLong();
+                int totalRounds = obj["total_rounds"].toInt();
+                emit oneVNGameStart1VN(sessionId, roomId, totalRounds);
+            }
+            break;
+
+        case CMD_NOTIFY_QUESTION_1VN:
+            if (obj.contains("round") && obj.contains("total_rounds") && 
+                obj.contains("difficulty") && obj.contains("question_id") &&
+                obj.contains("content") && obj.contains("options") && obj.contains("time_limit")) {
+                int round = obj["round"].toInt();
+                int totalRounds = obj["total_rounds"].toInt();
+                QString difficulty = obj["difficulty"].toString();
+                qint64 questionId = obj["question_id"].toVariant().toLongLong();
+                QString content = obj["content"].toString();
+                QJsonObject options = obj["options"].toObject();
+                int timeLimit = obj["time_limit"].toInt();
+                emit oneVNQuestion1VNReceived(round, totalRounds, difficulty, questionId, content, options, timeLimit);
+            }
+            break;
+
+        case CMD_RES_SUBMIT_ANSWER_1VN:
+            if (obj.contains("correct") && obj.contains("score") && obj.contains("total_score") && obj.contains("eliminated")) {
+                bool correct = obj["correct"].toBool();
+                int score = obj["score"].toInt();
+                int totalScore = obj["total_score"].toInt();
+                bool eliminated = obj["eliminated"].toBool();
+                emit oneVNAnswerResult1VN(correct, score, totalScore, eliminated);
+            }
+            break;
+
+        case CMD_NOTIFY_ELIMINATION:
+            if (obj.contains("user_id") && obj.contains("round")) {
+                qint64 userId = obj["user_id"].toVariant().toLongLong();
+                int round = obj["round"].toInt();
+                emit oneVNElimination(userId, round);
+            }
+            break;
+
+        case CMD_NOTIFY_GAME_OVER_1VN:
+            if (obj.contains("winner_id") && obj.contains("leaderboard")) {
+                qint64 winnerId = obj["winner_id"].toVariant().toLongLong();
+                QJsonArray leaderboard = obj["leaderboard"].toArray();
+                emit oneVNGameOver1VN(winnerId, leaderboard);
+            }
+            break;
+
+        case CMD_NOTIFY_ROOM_UPDATE:
+            if (obj.contains("members")) {
+                QJsonArray members = obj["members"].toArray();
+                emit oneVNRoomUpdate(members);
             }
             break;
 

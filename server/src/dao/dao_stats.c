@@ -174,3 +174,39 @@ int dao_stats_get_match_history(int64_t user_id, void **json_history) {
     PQclear(res);
     return 0;
 }
+
+int dao_stats_update_onevn_game(int64_t winner_id, int64_t *player_ids, int *player_scores, int *player_eliminated, int player_count) {
+    PGconn *conn = db_get_conn();
+    if (!conn || !player_ids || !player_scores || !player_eliminated || player_count <= 0) return -1;
+    
+    // Update stats for all players
+    for (int i = 0; i < player_count; i++) {
+        int64_t player_id = player_ids[i];
+        int is_winner = (player_id == winner_id && winner_id > 0) ? 1 : 0;
+        
+        // Increment onevn_games for all players
+        const char *sql_update =
+            "INSERT INTO user_stats (user_id, onevn_games, onevn_wins) "
+            "VALUES ($1, 1, $2) "
+            "ON CONFLICT (user_id) DO UPDATE SET "
+            "onevn_games = user_stats.onevn_games + 1, "
+            "onevn_wins = user_stats.onevn_wins + $2;";
+        
+        char buf_user[32], buf_winner[32];
+        snprintf(buf_user, sizeof(buf_user), "%ld", player_id);
+        snprintf(buf_winner, sizeof(buf_winner), "%d", is_winner);
+        const char *params[2] = { buf_user, buf_winner };
+        
+        PGresult *res = PQexecParams(conn, sql_update, 2, NULL, params, NULL, NULL, 0);
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            fprintf(stderr, "[DAO_STATS] update_onevn_game error for user %ld: %s\n", 
+                    player_id, PQerrorMessage(conn));
+            PQclear(res);
+            // Continue with other players
+            continue;
+        }
+        PQclear(res);
+    }
+    
+    return 0;
+}

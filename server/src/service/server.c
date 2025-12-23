@@ -88,6 +88,9 @@ int start_server(const char *bind_addr, const char *portstr) {
 		return -1;
 	}
 
+	// Set global session manager (important for session_manager_get_by_user_id)
+	session_manager_set_global(mgr);
+
 	// Add server socket to epoll
 	struct epoll_event ev;
 	ev.events = EPOLLIN | EPOLLET;

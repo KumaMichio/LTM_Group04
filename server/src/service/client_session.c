@@ -14,6 +14,7 @@ ClientSession *client_session_new(int socket_fd) {
     if (!s) return NULL;
     s->socket_fd = socket_fd;
     s->user_id = 0;
+    s->room_id = 0;
     s->access_token[0] = '\0';
     s->read_buffer_len = 0;
     s->expected_len = 0;

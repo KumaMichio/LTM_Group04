@@ -1,11 +1,13 @@
 // Session manager implementation
 #include "service/session_manager.h"
+#include "service/protocol.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/epoll.h>
+#include <stdint.h>
 
 SessionManager *session_manager_new(int max_sessions) {
 	SessionManager *mgr = calloc(1, sizeof(SessionManager));
@@ -155,4 +157,89 @@ int session_manager_get_epoll_fd(SessionManager *mgr) {
 
 int session_manager_count(SessionManager *mgr) {
 	return mgr ? mgr->session_count : 0;
+}
+
+// Global session manager instance
+static SessionManager *g_session_manager = NULL;
+
+void session_manager_set_global(SessionManager *mgr) {
+	g_session_manager = mgr;
+}
+
+SessionManager *session_manager_get_global(void) {
+	return g_session_manager;
+}
+
+void session_manager_set_room(ClientSession *sess, int64_t room_id) {
+	if (sess) {
+		sess->room_id = room_id;
+	}
+}
+
+ClientSession *session_manager_get_by_user_id(int64_t user_id) {
+	if (!g_session_manager || user_id <= 0) {
+		printf("[SESSION_MGR] get_by_user_id: g_session_manager=%p, user_id=%lld\n",
+		       (void*)g_session_manager, (long long)user_id);
+		fflush(stdout);
+		return NULL;
+	}
+	
+	printf("[SESSION_MGR] Searching for user_id=%lld in %d sessions\n",
+	       (long long)user_id, g_session_manager->max_sessions);
+	fflush(stdout);
+	
+	for (int i = 0; i < g_session_manager->max_sessions; i++) {
+		if (g_session_manager->sessions[i]) {
+			printf("[SESSION_MGR] session[%d]: user_id=%lld, room_id=%lld\n",
+			       i, (long long)g_session_manager->sessions[i]->user_id,
+			       (long long)g_session_manager->sessions[i]->room_id);
+			fflush(stdout);
+			if (g_session_manager->sessions[i]->user_id == user_id) {
+				printf("[SESSION_MGR] Found session for user_id=%lld\n", (long long)user_id);
+				fflush(stdout);
+				return g_session_manager->sessions[i];
+			}
+		}
+	}
+	
+	printf("[SESSION_MGR] Not found session for user_id=%lld\n", (long long)user_id);
+	fflush(stdout);
+	return NULL;
+}
+
+int session_manager_send_to_user(int64_t user_id, uint16_t cmd, const char *json, uint32_t json_len) {
+	ClientSession *sess = session_manager_get_by_user_id(user_id);
+	if (!sess) return 0;
+	
+	// Use protocol_send_response to send message
+	protocol_send_response(sess, cmd, json, json_len);
+	return 1;
+}
+
+int session_manager_broadcast_to_room(int64_t room_id, uint16_t cmd, const char *json, uint32_t json_len) {
+	if (!g_session_manager || room_id <= 0) {
+		printf("[SESSION_MGR] broadcast_to_room: invalid params (room_id=%lld)\n", (long long)room_id);
+		fflush(stdout);
+		return 0;
+	}
+	
+	int count = 0;
+	int total_sessions = 0;
+	for (int i = 0; i < g_session_manager->max_sessions; i++) {
+		if (g_session_manager->sessions[i]) {
+			total_sessions++;
+			if (g_session_manager->sessions[i]->room_id == room_id) {
+				printf("[SESSION_MGR] Broadcasting to session[%d]: user_id=%d, room_id=%lld\n",
+				       i, g_session_manager->sessions[i]->user_id, 
+				       (long long)g_session_manager->sessions[i]->room_id);
+				fflush(stdout);
+				protocol_send_response(g_session_manager->sessions[i], cmd, json, json_len);
+				count++;
+			}
+		}
+	}
+	printf("[SESSION_MGR] broadcast_to_room(room_id=%lld, cmd=0x%04x): sent to %d/%d sessions\n",
+	       (long long)room_id, cmd, count, total_sessions);
+	fflush(stdout);
+	return count;
 }

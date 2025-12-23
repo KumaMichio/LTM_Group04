@@ -72,6 +72,23 @@ template <> constexpr inline auto NetworkClient::qt_create_metaobjectdata<qt_met
         "remainingOptions",
         "removedOptions",
         "remaining",
+        "oneVNRoomCreated",
+        "roomId",
+        "oneVNRoomJoined",
+        "oneVNRoomUpdate",
+        "QJsonArray",
+        "members",
+        "oneVNGameStart1VN",
+        "oneVNQuestion1VNReceived",
+        "timeLimit",
+        "oneVNAnswerResult1VN",
+        "totalScore",
+        "eliminated",
+        "oneVNElimination",
+        "userId",
+        "oneVNGameOver1VN",
+        "winnerId",
+        "leaderboard",
         "onReadyRead",
         "onSocketError",
         "QAbstractSocket::SocketError",
@@ -125,15 +142,48 @@ template <> constexpr inline auto NetworkClient::qt_create_metaobjectdata<qt_met
             { QMetaType::LongLong, 12 }, { QMetaType::Int, 15 }, { QMetaType::QStringList, 31 }, { QMetaType::QStringList, 32 },
             { QMetaType::Int, 33 },
         }}),
+        // Signal 'oneVNRoomCreated'
+        QtMocHelpers::SignalData<void(qint64)>(34, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::LongLong, 35 },
+        }}),
+        // Signal 'oneVNRoomJoined'
+        QtMocHelpers::SignalData<void(bool, const QString &)>(36, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 5 }, { QMetaType::QString, 6 },
+        }}),
+        // Signal 'oneVNRoomUpdate'
+        QtMocHelpers::SignalData<void(const QJsonArray &)>(37, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 38, 39 },
+        }}),
+        // Signal 'oneVNGameStart1VN'
+        QtMocHelpers::SignalData<void(qint64, qint64, int)>(40, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::LongLong, 12 }, { QMetaType::LongLong, 35 }, { QMetaType::Int, 13 },
+        }}),
+        // Signal 'oneVNQuestion1VNReceived'
+        QtMocHelpers::SignalData<void(int, int, const QString &, qint64, const QString &, const QJsonObject &, int)>(41, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 15 }, { QMetaType::Int, 13 }, { QMetaType::QString, 20 }, { QMetaType::LongLong, 16 },
+            { QMetaType::QString, 17 }, { 0x80000000 | 18, 19 }, { QMetaType::Int, 42 },
+        }}),
+        // Signal 'oneVNAnswerResult1VN'
+        QtMocHelpers::SignalData<void(bool, int, int, bool)>(43, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 22 }, { QMetaType::Int, 24 }, { QMetaType::Int, 44 }, { QMetaType::Bool, 45 },
+        }}),
+        // Signal 'oneVNElimination'
+        QtMocHelpers::SignalData<void(qint64, int)>(46, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::LongLong, 47 }, { QMetaType::Int, 15 },
+        }}),
+        // Signal 'oneVNGameOver1VN'
+        QtMocHelpers::SignalData<void(qint64, const QJsonArray &)>(48, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::LongLong, 49 }, { 0x80000000 | 38, 50 },
+        }}),
         // Slot 'onReadyRead'
-        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(51, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onSocketError'
-        QtMocHelpers::SlotData<void(QAbstractSocket::SocketError)>(35, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { 0x80000000 | 36, 6 },
+        QtMocHelpers::SlotData<void(QAbstractSocket::SocketError)>(52, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 53, 6 },
         }}),
         // Slot 'onSocketStateChanged'
-        QtMocHelpers::SlotData<void(QAbstractSocket::SocketState)>(37, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { 0x80000000 | 38, 39 },
+        QtMocHelpers::SlotData<void(QAbstractSocket::SocketState)>(54, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 55, 56 },
         }}),
     };
     QtMocHelpers::UintData qt_properties {
@@ -169,23 +219,31 @@ void NetworkClient::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 8: _t->quickModeAnswerResult((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[5])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[6]))); break;
         case 9: _t->quickModeGameOver((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[5]))); break;
         case 10: _t->quickModeLifelineResult((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<QStringList>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<QStringList>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[5]))); break;
-        case 11: _t->onReadyRead(); break;
-        case 12: _t->onSocketError((*reinterpret_cast<std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
-        case 13: _t->onSocketStateChanged((*reinterpret_cast<std::add_pointer_t<QAbstractSocket::SocketState>>(_a[1]))); break;
+        case 11: _t->oneVNRoomCreated((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1]))); break;
+        case 12: _t->oneVNRoomJoined((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[2]))); break;
+        case 13: _t->oneVNRoomUpdate((*reinterpret_cast<std::add_pointer_t<QJsonArray>>(_a[1]))); break;
+        case 14: _t->oneVNGameStart1VN((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3]))); break;
+        case 15: _t->oneVNQuestion1VNReceived((*reinterpret_cast<std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<qint64>>(_a[4])),(*reinterpret_cast<std::add_pointer_t<QString>>(_a[5])),(*reinterpret_cast<std::add_pointer_t<QJsonObject>>(_a[6])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[7]))); break;
+        case 16: _t->oneVNAnswerResult1VN((*reinterpret_cast<std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast<std::add_pointer_t<bool>>(_a[4]))); break;
+        case 17: _t->oneVNElimination((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<int>>(_a[2]))); break;
+        case 18: _t->oneVNGameOver1VN((*reinterpret_cast<std::add_pointer_t<qint64>>(_a[1])),(*reinterpret_cast<std::add_pointer_t<QJsonArray>>(_a[2]))); break;
+        case 19: _t->onReadyRead(); break;
+        case 20: _t->onSocketError((*reinterpret_cast<std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
+        case 21: _t->onSocketStateChanged((*reinterpret_cast<std::add_pointer_t<QAbstractSocket::SocketState>>(_a[1]))); break;
         default: ;
         }
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-        case 12:
+        case 20:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QAbstractSocket::SocketError >(); break;
             }
             break;
-        case 13:
+        case 21:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
@@ -217,6 +275,22 @@ void NetworkClient::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
             return;
         if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(qint64 , int , const QStringList & , const QStringList & , int )>(_a, &NetworkClient::quickModeLifelineResult, 10))
             return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(qint64 )>(_a, &NetworkClient::oneVNRoomCreated, 11))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(bool , const QString & )>(_a, &NetworkClient::oneVNRoomJoined, 12))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(const QJsonArray & )>(_a, &NetworkClient::oneVNRoomUpdate, 13))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(qint64 , qint64 , int )>(_a, &NetworkClient::oneVNGameStart1VN, 14))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(int , int , const QString & , qint64 , const QString & , const QJsonObject & , int )>(_a, &NetworkClient::oneVNQuestion1VNReceived, 15))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(bool , int , int , bool )>(_a, &NetworkClient::oneVNAnswerResult1VN, 16))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(qint64 , int )>(_a, &NetworkClient::oneVNElimination, 17))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (NetworkClient::*)(qint64 , const QJsonArray & )>(_a, &NetworkClient::oneVNGameOver1VN, 18))
+            return;
     }
 }
 
@@ -239,14 +313,14 @@ int NetworkClient::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 14)
+        if (_id < 22)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 14;
+        _id -= 22;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 14)
+        if (_id < 22)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 14;
+        _id -= 22;
     }
     return _id;
 }
@@ -315,5 +389,53 @@ void NetworkClient::quickModeGameOver(qint64 _t1, int _t2, int _t3, const QStrin
 void NetworkClient::quickModeLifelineResult(qint64 _t1, int _t2, const QStringList & _t3, const QStringList & _t4, int _t5)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 10, nullptr, _t1, _t2, _t3, _t4, _t5);
+}
+
+// SIGNAL 11
+void NetworkClient::oneVNRoomCreated(qint64 _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 11, nullptr, _t1);
+}
+
+// SIGNAL 12
+void NetworkClient::oneVNRoomJoined(bool _t1, const QString & _t2)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 12, nullptr, _t1, _t2);
+}
+
+// SIGNAL 13
+void NetworkClient::oneVNRoomUpdate(const QJsonArray & _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 13, nullptr, _t1);
+}
+
+// SIGNAL 14
+void NetworkClient::oneVNGameStart1VN(qint64 _t1, qint64 _t2, int _t3)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 14, nullptr, _t1, _t2, _t3);
+}
+
+// SIGNAL 15
+void NetworkClient::oneVNQuestion1VNReceived(int _t1, int _t2, const QString & _t3, qint64 _t4, const QString & _t5, const QJsonObject & _t6, int _t7)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 15, nullptr, _t1, _t2, _t3, _t4, _t5, _t6, _t7);
+}
+
+// SIGNAL 16
+void NetworkClient::oneVNAnswerResult1VN(bool _t1, int _t2, int _t3, bool _t4)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 16, nullptr, _t1, _t2, _t3, _t4);
+}
+
+// SIGNAL 17
+void NetworkClient::oneVNElimination(qint64 _t1, int _t2)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 17, nullptr, _t1, _t2);
+}
+
+// SIGNAL 18
+void NetworkClient::oneVNGameOver1VN(qint64 _t1, const QJsonArray & _t2)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 18, nullptr, _t1, _t2);
 }
 QT_WARNING_POP

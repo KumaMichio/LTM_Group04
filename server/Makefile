@@ -20,6 +20,8 @@ SERVICE_OBJS = \
     src/service/auth_service.o \
     src/service/client_session.o \
     src/service/dispatcher.o \
+    src/service/friends_service.o \
+    src/service/onevn_service.o \
     src/service/protocol.o \
     src/service/quickmode_service.o \
     src/service/server.o \
@@ -45,7 +47,14 @@ TEST_CHAT_OBJ      = src/test/test_chat.o
 TEST_FRIENDS_OBJ   = src/test/test_friends.o
 TEST_QUICKMODE_OBJ = src/test/test_quickmode.o
 TEST_QUICKMODE_NETWORK_OBJ = src/test/test_quickmode_network.o
+TEST_FRIENDS_NETWORK_OBJ = src/test/test_friends_network.o
+TEST_ROOM_NETWORK_OBJ = src/test/test_room_network.o
+TEST_CHAT_NETWORK_OBJ = src/test/test_chat_network.o
+TEST_ONEVN_NETWORK_OBJ = src/test/test_onevn_network.o
+TEST_ONEVN_JOIN_OBJ = src/test/test_onevn_join.o
 TEST_ROOMS_OBJ     = src/test/test_rooms.o
+TEST_ONEVN_OBJ     = src/test/test_onevn.o
+TEST_ONEVN_INTERACTIVE_OBJ = src/test/test_onevn_interactive.o
 
 # ==== TARGET MẶC ĐỊNH ====
 
@@ -57,7 +66,14 @@ all: $(BUILD_DIR)/server \
      $(BUILD_DIR)/test_friends \
      $(BUILD_DIR)/test_quickmode \
      $(BUILD_DIR)/test_quickmode_network \
-     $(BUILD_DIR)/test_rooms
+     $(BUILD_DIR)/test_friends_network \
+     $(BUILD_DIR)/test_room_network \
+     $(BUILD_DIR)/test_chat_network \
+     $(BUILD_DIR)/test_onevn_network \
+     $(BUILD_DIR)/test_onevn_join \
+     $(BUILD_DIR)/test_rooms \
+     $(BUILD_DIR)/test_onevn \
+     $(BUILD_DIR)/test_onevn_interactive
 
 # ==== SERVER ====
 
@@ -95,6 +111,34 @@ $(BUILD_DIR)/test_quickmode_network: $(TEST_QUICKMODE_NETWORK_OBJ)
 $(BUILD_DIR)/test_rooms: $(COMMON_OBJS) $(TEST_ROOMS_OBJ)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(COMMON_OBJS) $(TEST_ROOMS_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_onevn: $(COMMON_OBJS) $(TEST_ONEVN_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(COMMON_OBJS) $(TEST_ONEVN_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_onevn_interactive: $(COMMON_OBJS) $(TEST_ONEVN_INTERACTIVE_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(COMMON_OBJS) $(TEST_ONEVN_INTERACTIVE_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_friends_network: $(TEST_FRIENDS_NETWORK_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_FRIENDS_NETWORK_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_room_network: $(TEST_ROOM_NETWORK_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_ROOM_NETWORK_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_chat_network: $(TEST_CHAT_NETWORK_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_CHAT_NETWORK_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_onevn_network: $(TEST_ONEVN_NETWORK_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_ONEVN_NETWORK_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_onevn_join: $(TEST_ONEVN_JOIN_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_ONEVN_JOIN_OBJ) -o $@ $(LDFLAGS)
 
 # ==== RULE BIÊN DỊCH CHUNG ====
 

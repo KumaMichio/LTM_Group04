@@ -23,4 +23,7 @@ int dao_users_find_by_id(int64_t user_id, User *out_user);
 // auth: 1 = đúng, 0 = sai, <0 lỗi DB
 int dao_users_check_password(const char *username, const char *password, int64_t *out_user_id);
 
+// Search users by username (partial match), returns JSON array
+int dao_users_search_by_username(const char *query, int limit, void **result_json);
+
 #endif

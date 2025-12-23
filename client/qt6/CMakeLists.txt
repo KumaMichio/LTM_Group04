@@ -23,7 +23,9 @@ set(SOURCES
     LoginWindow.cpp
     NetworkClient.cpp
     GameModeSelectionWindow.cpp
+    WelcomeWindow.cpp
     QuickModeWindow.cpp
+    OneVNWindow.cpp
     WinWindow.cpp
     LoseWindow.cpp
 )
@@ -32,7 +34,9 @@ set(HEADERS
     LoginWindow.h
     NetworkClient.h
     GameModeSelectionWindow.h
+    WelcomeWindow.h
     QuickModeWindow.h
+    OneVNWindow.h
     WinWindow.h
     LoseWindow.h
 )

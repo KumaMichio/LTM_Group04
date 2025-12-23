@@ -12,6 +12,7 @@ typedef struct ClientSession {
 	int socket_fd;             // socket file descriptor, -1 if unused
 	int64_t user_id;           // authenticated user id (0 if not logged in)
 	char access_token[65];     // if authenticated: token (NULL-terminated)
+	int64_t room_id;           // current room id (0 if not in room)
 	
 	// Buffer for partial packet reads
 	char read_buffer[READ_BUFFER_SIZE];

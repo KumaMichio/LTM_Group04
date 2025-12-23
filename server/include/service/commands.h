@@ -30,6 +30,12 @@
 #define CMD_REQ_LIST_FRIENDS    0x0206    // Client → Server: Get friend list
 #define CMD_RES_LIST_FRIENDS    0x0207    // Server → Client: Return friend list
 #define CMD_NOTIFY_FRIEND_STATUS 0x0208   // Server → Client: Friend online/offline
+#define CMD_REQ_SEARCH_USER      0x0209    // Client → Server: Search user by username
+#define CMD_RES_SEARCH_USER      0x020A    // Server → Client: Search user result
+#define CMD_REQ_GET_FRIEND_INFO  0x020B    // Client → Server: Get friend info
+#define CMD_RES_GET_FRIEND_INFO  0x020C    // Server → Client: Friend info result
+#define CMD_REQ_GET_PENDING_REQ  0x020D    // Client → Server: Get pending requests
+#define CMD_RES_GET_PENDING_REQ  0x020E    // Server → Client: Pending requests list
 
 // ========== 0x03xx – Chat (Direct Messages & Rooms)
 #define CMD_REQ_SEND_DM         0x0301    // Client → Server: Send private message
@@ -48,13 +54,14 @@
 #define CMD_RES_JOIN_ROOM       0x0404    // Server → Client: Join room result
 #define CMD_NOTIFY_ROOM_UPDATE  0x0405    // Server → Client: Room member update
 #define CMD_REQ_INVITE_FRIEND   0x0406    // Client → Server: Invite friend
-#define CMD_NOTIFY_ROOM_INVITE  0x0407    // Server → Client: Room invite received
-#define CMD_REQ_RESPOND_INVITE  0x0408    // Client → Server: Accept/Reject invite
-#define CMD_RES_RESPOND_INVITE  0x0409    // Server → Client: Invite result
-#define CMD_REQ_LEAVE_ROOM      0x040A    // Client → Server: Leave room
-#define CMD_RES_LEAVE_ROOM      0x040B    // Server → Client: Leave room result
-#define CMD_REQ_START_GAME      0x040C    // Client → Server: Host starts game
-#define CMD_RES_START_GAME      0x040D    // Server → Client: Start game result
+#define CMD_RES_INVITE_FRIEND   0x0407    // Server → Client: Invite friend result
+#define CMD_NOTIFY_ROOM_INVITE  0x0408    // Server → Client: Room invite received
+#define CMD_REQ_RESPOND_INVITE  0x0409    // Client → Server: Accept/Reject invite
+#define CMD_RES_RESPOND_INVITE  0x040A    // Server → Client: Invite result
+#define CMD_REQ_LEAVE_ROOM      0x040B    // Client → Server: Leave room
+#define CMD_RES_LEAVE_ROOM      0x040C    // Server → Client: Leave room result
+#define CMD_REQ_START_GAME      0x040D    // Client → Server: Host starts game
+#define CMD_RES_START_GAME      0x040E    // Server → Client: Start game result
 
 // ========== 0x05xx – Game: Basic Mode (Solo - Quickmode)
 #define CMD_REQ_START_QUICKMODE    0x0500    // Client → Server: Start game

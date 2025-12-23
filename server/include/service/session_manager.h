@@ -35,4 +35,20 @@ int session_manager_get_epoll_fd(SessionManager *mgr);
 // Get count
 int session_manager_count(SessionManager *mgr);
 
+// Update session's room_id
+void session_manager_set_room(ClientSession *sess, int64_t room_id);
+
+// Get session by user_id
+ClientSession *session_manager_get_by_user_id(int64_t user_id);
+
+// Send message to a specific user (if online)
+int session_manager_send_to_user(int64_t user_id, uint16_t cmd, const char *json, uint32_t json_len);
+
+// Broadcast message to all sessions in a room
+int session_manager_broadcast_to_room(int64_t room_id, uint16_t cmd, const char *json, uint32_t json_len);
+
+// Set/get global session manager instance
+void session_manager_set_global(SessionManager *mgr);
+SessionManager *session_manager_get_global(void);
+
 #endif

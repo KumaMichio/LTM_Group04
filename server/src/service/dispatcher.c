@@ -3,11 +3,14 @@
 #include "service/auth_service.h"
 #include "service/quickmode_service.h"
 #include "service/stats_service.h"
+#include "service/friends_service.h"
+#include "service/onevn_service.h"
 // Nếu tách riêng friends/chat/room:
 #include "dao/dao_friends.h"
 #include "dao/dao_chat.h"
 #include "dao/dao_rooms.h"
 #include "service/protocol.h"
+#include "service/session_manager.h"
 #include "utils/json.h"
 #include <stdint.h>
 #include <string.h>
@@ -27,85 +30,11 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
             break;
 
         case 0x02: // Friends
-            switch (cmd) {
-                case CMD_REQ_ADD_FRIEND: {
-                    // parse payload: { "friend_id": 123 }
-                    long long friend_id = 0;
-                    util_json_get_int64(payload, "friend_id", &friend_id);
-                    if (dao_friends_send_request(sess->user_id, friend_id) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_ADD_FRIEND);
-                    } else {
-                        protocol_send_error(sess, CMD_RES_ADD_FRIEND, "ADD_FRIEND_FAILED");
-                    }
-                } break;
-                case CMD_REQ_RESPOND_FRIEND: {
-                    long long from_user = 0;
-                    long long accept_ll = 0;
-                    util_json_get_int64(payload, "from_user", &from_user);
-                    util_json_get_int64(payload, "accept", &accept_ll);
-                    int accept = accept_ll ? 1 : 0;
-                    if (dao_friends_respond_request(from_user, sess->user_id, accept) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_RESPOND_FRIEND);
-                    } else {
-                        protocol_send_error(sess, CMD_RES_RESPOND_FRIEND, "RESPOND_FRIEND_FAILED");
-                    }
-                } break;
-                case CMD_REQ_LIST_FRIENDS: {
-                    void *json_list = NULL;
-                    if (dao_friends_list(sess->user_id, &json_list) != 0) {
-                        protocol_send_error(sess, CMD_RES_LIST_FRIENDS, "LIST_FRIENDS_FAILED");
-                    } else {
-                        const char *json_str = (const char *)json_list;
-                        protocol_send_response(sess, CMD_RES_LIST_FRIENDS, json_str, strlen(json_str));
-                        free(json_list);
-                    }
-                } break;
-                default:
-                    protocol_send_error(sess, cmd, "UNKNOWN_FRIENDS_CMD");
-            }
+            friends_dispatch(sess, cmd, payload, payload_len);
             break;
 
         case 0x03: // Chat
-            switch (cmd) {
-                case CMD_REQ_SEND_DM: {
-                    long long to_user = 0;
-                    util_json_get_int64(payload, "to_user", &to_user);
-                    char *msg = util_json_get_string(payload, "content");
-                    if (dao_chat_send_dm(sess->user_id, to_user, msg) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_SEND_DM);
-                        // Đồng thời push NOTIFY_DM cho người nhận (nếu online)
-                        // server_broadcast_dm(to_user, sess->user_id, msg);
-                    } else {
-                        protocol_send_error(sess, CMD_RES_SEND_DM, "SEND_DM_FAILED");
-                    }
-                    if (msg) free(msg);
-                } break;
-                case CMD_REQ_SEND_ROOM_CHAT: {
-                    long long room_id = 0;
-                    util_json_get_int64(payload, "room_id", &room_id);
-                    char *msg = util_json_get_string(payload, "content");
-                    if (dao_chat_send_room(sess->user_id, room_id, msg) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_SEND_ROOM_CHAT);
-                        // broadcast NOTIFY_ROOM_CHAT cho các member trong room
-                    } else {
-                        protocol_send_error(sess, CMD_RES_SEND_ROOM_CHAT, "SEND_ROOM_CHAT_FAILED");
-                    }
-                    if (msg) free(msg);
-                } break;
-                case CMD_REQ_FETCH_OFFLINE: {
-                    void *json_msgs = NULL;
-                    if (dao_chat_fetch_offline(sess->user_id, &json_msgs) != 0) {
-                        protocol_send_error(sess, CMD_RES_FETCH_OFFLINE, "FETCH_OFFLINE_FAILED");
-                    } else {
-                        const char *json_str = (const char *)json_msgs;
-                        protocol_send_response(sess, CMD_RES_FETCH_OFFLINE, json_str, strlen(json_str));
-                        dao_chat_mark_read(sess->user_id);
-                        free(json_msgs);
-                    }
-                } break;
-                default:
-                    protocol_send_error(sess, cmd, "UNKNOWN_CHAT_CMD");
-            }
+            friends_dispatch(sess, cmd, payload, payload_len);
             break;
 
         case 0x04: // Room
@@ -113,6 +42,8 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                 case CMD_REQ_CREATE_ROOM: {
                     int64_t room_id;
                     if (dao_rooms_create(sess->user_id, &room_id) == 0) {
+                        // Set room_id in session
+                        session_manager_set_room(sess, room_id);
                         // trả về info room
                         char buf[128];
                         snprintf(buf, sizeof(buf), "{\"room_id\": %ld}", room_id);
@@ -125,7 +56,25 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                     long long room_id = 0; // parse
                     util_json_get_int64(payload, "room_id", &room_id);
                     if (dao_rooms_join(room_id, sess->user_id, 0) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_JOIN_ROOM);
+                        // Set room_id in session
+                        session_manager_set_room(sess, (int64_t)room_id);
+                        
+                        // Get room members and send back
+                        void *members_json = NULL;
+                        if (dao_rooms_get_members(room_id, &members_json) == 0) {
+                            char response_buf[2048];
+                            snprintf(response_buf, sizeof(response_buf), 
+                                "{\"room_id\": %lld, \"members\": %s}", 
+                                room_id, (char*)members_json);
+                            protocol_send_response(sess, CMD_RES_JOIN_ROOM, response_buf, strlen(response_buf));
+                            free(members_json);
+                        } else {
+                            // Fallback if can't get members
+                            char response_buf[128];
+                            snprintf(response_buf, sizeof(response_buf), 
+                                "{\"room_id\": %lld, \"status\": \"success\"}", room_id);
+                            protocol_send_response(sess, CMD_RES_JOIN_ROOM, response_buf, strlen(response_buf));
+                        }
                         // broadcast NOTIFY_ROOM_UPDATE cho các member
                     } else {
                         protocol_send_error(sess, CMD_RES_JOIN_ROOM, "JOIN_ROOM_FAILED");
@@ -135,24 +84,31 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                     long long room_id = 0; // parse
                     util_json_get_int64(payload, "room_id", &room_id);
                     if (dao_rooms_leave(room_id, sess->user_id) == 0) {
-                        protocol_send_simple_ok(sess, CMD_RES_LEAVE_ROOM);
+                        char response_buf[128];
+                        snprintf(response_buf, sizeof(response_buf), 
+                            "{\"room_id\": %lld, \"status\": \"left\"}", room_id);
+                        protocol_send_response(sess, CMD_RES_LEAVE_ROOM, response_buf, strlen(response_buf));
                     } else {
                         protocol_send_error(sess, CMD_RES_LEAVE_ROOM, "LEAVE_ROOM_FAILED");
                     }
                 } break;
                 case CMD_REQ_START_GAME: {
-                    // update status room, gọi quickmode/1vN
-                    // dao_rooms_update_status(room_id, ROOM_STATUS_PLAYING);
-                    // rồi quickmode_start_1vN(...)
+                    // Start 1vN game - handled by onevn_service
+                    onevn_dispatch(sess, cmd, payload, payload_len);
                 } break;
+                case CMD_REQ_INVITE_FRIEND:
+                    friends_dispatch(sess, cmd, payload, payload_len);
+                    break;
                 default:
                     protocol_send_error(sess, cmd, "UNKNOWN_ROOM_CMD");
             }
             break;
 
-        case 0x05: // Basic Mode – bạn đã làm phần quickmode_service
-        case 0x06: // 1vN MODE – sau này bạn mở rộng thêm
+        case 0x05: // Basic Mode – Quickmode
             quickmode_dispatch(sess, cmd, payload, payload_len);
+            break;
+        case 0x06: // 1vN MODE
+            onevn_dispatch(sess, cmd, payload, payload_len);
             break;
 
         case 0x07: // Stats

@@ -32,4 +32,31 @@ int timer_get_remaining(Timer *timer);
  */
 void timer_reset(Timer *timer);
 
+// ========== Callback-based Timer System ==========
+
+// Timer callback function type
+typedef void (*timer_callback_t)(int64_t context_id, void *user_data);
+
+/**
+ * Create a game timer with callback (for async operations)
+ * Returns: timer ID (>= 0) on success, -1 on error
+ * Note: Named game_timer_* to avoid conflict with POSIX timer_create
+ */
+int game_timer_create(int timeout_seconds, int64_t context_id, timer_callback_t callback, void *user_data);
+
+/**
+ * Cancel a game timer by ID
+ */
+void game_timer_cancel(int timer_id);
+
+/**
+ * Check and run expired game timers (call this periodically in main loop)
+ */
+void game_timer_check_and_run(void);
+
+/**
+ * Cleanup expired game timers
+ */
+void game_timer_cleanup(void);
+
 #endif
