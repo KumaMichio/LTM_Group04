@@ -130,10 +130,12 @@ Item {
                     Layout.preferredHeight: Math.round(40 * uiScale)
                     color: "transparent"
 
-                    Text {
+                    Image {
                         anchors.centerIn: parent
-                        text: "🚪"
-                        font.pixelSize: Math.round(20 * uiScale)
+                        source: "qrc:/icons/log-out.svg"
+                        width: Math.round(24 * uiScale)
+                        height: Math.round(24 * uiScale)
+                        sourceSize: Qt.size(width, height)
                     }
 
                     MouseArea {
@@ -328,10 +330,12 @@ Item {
                         anchors.centerIn: parent
                         spacing: Math.round(4 * uiScale)
 
-                        Text {
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "🏠"
-                            font.pixelSize: Math.round(24 * uiScale)
+                            source: "qrc:/icons/home.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
 
                         Text {
@@ -359,10 +363,12 @@ Item {
                             height: Math.round(24 * uiScale)
                             anchors.horizontalCenter: parent.horizontalCenter
 
-                            Text {
+                            Image {
                                 anchors.centerIn: parent
-                                text: "👥"
-                                font.pixelSize: Math.round(24 * uiScale)
+                                source: "qrc:/icons/users.svg"
+                                width: Math.round(24 * uiScale)
+                                height: Math.round(24 * uiScale)
+                                sourceSize: Qt.size(width, height)
                             }
 
                             Rectangle {
@@ -420,10 +426,12 @@ Item {
                         anchors.centerIn: parent
                         spacing: Math.round(4 * uiScale)
 
-                        Text {
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "🏆"
-                            font.pixelSize: Math.round(24 * uiScale)
+                            source: "qrc:/icons/award.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
 
                         Text {
@@ -458,10 +466,12 @@ Item {
                         anchors.centerIn: parent
                         spacing: Math.round(4 * uiScale)
 
-                        Text {
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "👤"
-                            font.pixelSize: Math.round(24 * uiScale)
+                            source: "qrc:/icons/user.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
 
                         Text {
@@ -640,6 +650,12 @@ Item {
         }
     }
 
+    // ===================== Invite Notification Dialog =====================
+    InviteNotificationDialog {
+        id: inviteNotificationDialog
+        anchors.centerIn: parent
+    }
+
     // ===================== Network hooks =====================
     Connections {
         target: networkClient
@@ -652,6 +668,16 @@ Item {
 
         function onDmReceived(fromUserId, fromUsername, message, timestamp) {
             hasUnreadMessages = true
+        }
+
+        function onRoomInviteReceived(roomId, fromUserId, fromUsername) {
+            console.log("[HomeScreen] Received room invite from", fromUsername, "room:", roomId)
+            inviteNotificationDialog.roomId = roomId
+            inviteNotificationDialog.fromUserId = fromUserId
+            inviteNotificationDialog.inviterName = fromUsername
+            inviteNotificationDialog.stackView = stackView
+            inviteNotificationDialog.username = username
+            inviteNotificationDialog.open()
         }
 
         function onLogoutResponse(success) {

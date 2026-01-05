@@ -1,13 +1,25 @@
 import QtQuick 6.0
 import QtQuick.Controls 6.0
 import QtQuick.Layouts 6.0
+import QtQuick.Window 6.0
 
 ApplicationWindow {
     id: root
-    width: 400
-    height: 700
-    minimumWidth: 360
-    minimumHeight: 640
+    property real targetWidth: {
+        if (screen) {
+            var w = screen.width * 0.5
+            if (w > 1100) w = 1100
+            if (w < 950) w = 600
+            return w
+        }
+        return 1000
+    }
+    property real targetHeight: screen ? screen.height * 0.7 : 700
+
+    width: targetWidth
+    height: targetHeight
+    minimumWidth: 600
+    minimumHeight: 700
     visible: true
     title: "Ai là triệu phú"
     
@@ -38,6 +50,13 @@ ApplicationWindow {
                 to: 0
                 duration: 300
             }
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible && screen) {
+            x = (screen.width - width) / 2
+            y = (screen.height - height) / 2
         }
     }
 }

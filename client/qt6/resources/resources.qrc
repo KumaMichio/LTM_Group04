@@ -1,0 +1,51 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <!-- Icons for UI elements -->
+    <qresource prefix="/">
+        <!-- Navigation icons -->
+        <file>icons/home.svg</file>
+        <file>icons/users.svg</file>
+        <file>icons/award.svg</file>
+        <file>icons/user.svg</file>
+        <file>icons/log-out.svg</file>
+        <file>icons/arrow-left.svg</file>
+        <file>icons/refresh-cw.svg</file>
+        <file>icons/search.svg</file>
+        
+        <!-- Add more icon files here when ready -->
+        <!-- Example:
+        <file>icons/app_logo.png</file>
+        <file>icons/user_online.svg</file>
+        <file>icons/user_offline.svg</file>
+        <file>icons/chat_icon.svg</file>
+        <file>icons/room_icon.svg</file>
+        <file>icons/invite_icon.svg</file>
+        <file>icons/accept_icon.svg</file>
+        <file>icons/decline_icon.svg</file>
+        <file>icons/leaderboard_icon.svg</file>
+        <file>icons/friend_icon.svg</file>
+        -->
+    </qresource>
+    
+    <!-- Background images and UI graphics -->
+    <qresource prefix="/images">
+        <!-- Add image files here when ready -->
+        <!-- Example:
+        <file>images/bg_login.jpg</file>
+        <file>images/bg_lobby.jpg</file>
+        <file>images/bg_game.jpg</file>
+        <file>images/bg_invite_dialog.jpg</file>
+        <file>images/avatar_default.png</file>
+        <file>images/game_logo.png</file>
+        -->
+    </qresource>
+    
+    <!-- Custom fonts (optional) -->
+    <qresource prefix="/fonts">
+        <!-- Add font files here when ready -->
+        <!-- Example:
+        <file>fonts/RobotoMono-Regular.ttf</file>
+        <file>fonts/custom_font.ttf</file>
+        -->
+    </qresource>
+</RCC>

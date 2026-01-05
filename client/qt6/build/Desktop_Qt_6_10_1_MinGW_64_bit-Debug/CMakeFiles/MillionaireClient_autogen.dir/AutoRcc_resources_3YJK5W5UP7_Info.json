@@ -1,0 +1,32 @@
+{
+	"BUILD_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/MillionaireClient_autogen",
+	"CMAKE_BINARY_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug",
+	"CMAKE_CURRENT_BINARY_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug",
+	"CMAKE_CURRENT_SOURCE_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6",
+	"CMAKE_SOURCE_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6",
+	"CROSS_CONFIG" : false,
+	"GENERATOR" : "Ninja",
+	"INCLUDE_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/MillionaireClient_autogen/include",
+	"INPUTS" : 
+	[
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/award.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/refresh-cw.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/log-out.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/users.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/user.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/search.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/home.svg",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/icons/arrow-left.svg"
+	],
+	"LOCK_FILE" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/MillionaireClient_autogen.dir/AutoRcc_resources_3YJK5W5UP7_Lock.lock",
+	"MULTI_CONFIG" : false,
+	"OPTIONS" : [ "--no-zstd", "-name", "resources" ],
+	"OUTPUT_CHECKSUM" : "3YJK5W5UP7",
+	"OUTPUT_NAME" : "qrc_resources.cpp",
+	"RCC_EXECUTABLE" : "C:/Qt/6.10.1/mingw_64/bin/rcc.exe",
+	"RCC_LIST_OPTIONS" : [ "--list" ],
+	"SETTINGS_FILE" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug/CMakeFiles/MillionaireClient_autogen.dir/AutoRcc_resources_3YJK5W5UP7_Used.txt",
+	"SOURCE" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/resources.qrc",
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}

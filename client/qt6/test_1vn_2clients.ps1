@@ -14,23 +14,12 @@ if (-not (Test-Path $exePath)) {
     exit 1
 }
 
-# Check if Qt DLLs are deployed (required for QML)
-$qtDlls = @("Qt6Qml.dll", "Qt6Quick.dll", "Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll")
-$missingDlls = @()
-foreach ($dll in $qtDlls) {
-    $dllPath = Join-Path $buildDir $dll
-    if (-not (Test-Path $dllPath)) {
-        $missingDlls += $dll
-    }
-}
+# Check if this is the first run (check for deployment marker file)
+$deployMarker = Join-Path $buildDir ".qt_deployed"
+$needsDeploy = -not (Test-Path $deployMarker)
 
-# Only deploy if DLLs are actually missing
-if ($missingDlls.Count -gt 0) {
-    Write-Host "[WARNING] Missing Qt DLLs detected!" -ForegroundColor Yellow
-    Write-Host "Missing: $($missingDlls -join ', ')" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "Qt DLLs are required for QML applications." -ForegroundColor Cyan
-    Write-Host "Attempting to deploy Qt libraries..." -ForegroundColor Cyan
+if ($needsDeploy) {
+    Write-Host "[INFO] First run detected - deploying Qt DLLs..." -ForegroundColor Cyan
     Write-Host ""
     
     # Try to find and run deploy script
@@ -44,6 +33,10 @@ if ($missingDlls.Count -gt 0) {
             Write-Host "Please run manually: .\deploy_qt.ps1" -ForegroundColor Yellow
             exit 1
         }
+        
+        # Create marker file to indicate DLLs are deployed
+        New-Item -Path $deployMarker -ItemType File -Force | Out-Null
+        Write-Host "[SUCCESS] Qt DLLs deployed and marked" -ForegroundColor Green
         Write-Host ""
     } else {
         Write-Host "[ERROR] Deployment script not found: $deployScript" -ForegroundColor Red
@@ -54,7 +47,7 @@ if ($missingDlls.Count -gt 0) {
         exit 1
     }
 } else {
-    Write-Host "[INFO] Qt DLLs are already deployed" -ForegroundColor Green
+    Write-Host "[INFO] Qt DLLs already deployed (skipping)" -ForegroundColor Green
     Write-Host ""
 }
 

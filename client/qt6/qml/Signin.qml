@@ -13,7 +13,7 @@ ScrollView {
     
     ColumnLayout {
         id: signinLayout
-        width: parent.width - 48 // 24px padding each side
+        width: parent.width - 90 // 45px padding each side
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 0
         

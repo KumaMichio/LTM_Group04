@@ -61,7 +61,7 @@ Item {
             // Title
             Text {
                 Layout.fillWidth: true
-                text: "📜 Lịch Sử Game 1vN"
+                text: "Lịch Sử Game 1vN"
                 font.family: "Lexend"
                 font.pixelSize: 20
                 font.bold: true
@@ -74,13 +74,14 @@ Item {
                 Layout.preferredHeight: 40
                 color: "transparent"
                 
-                Text {
-                    anchors.centerIn: parent
-                    text: "🔄"
-                    font.pixelSize: 20
-                    color: isLoading ? "#B0B0B0" : "#FFFFFF"
-                }
-                
+            Image {
+                anchors.centerIn: parent
+                source: "qrc:/icons/refresh-cw.svg"
+                width: 24
+                height: 24
+                sourceSize: Qt.size(24, 24)
+                opacity: isLoading ? 0.5 : 1.0
+            }
                 MouseArea {
                     anchors.fill: parent
                     enabled: !isLoading

@@ -23,27 +23,27 @@ Button {
     background: Rectangle {
         id: bgRect
         color: {
-            // If highlighted, ALWAYS show highlight color, completely ignore hover/pressed
+            // Highlighted state
             if (optionButton.isHighlighted) {
                 return optionButton.highlightColor
             }
-            // Normal state: show white/gray, but allow hover effect
+            // Hover (enabled)
             if (optionButton.hovered && optionButton.enabled) {
-                return "#F5F5F5"  // Slightly darker on hover
+                return "#4F3A75"  // Slightly lighter hover on base
             }
-            // If disabled but forceWhiteWhenDisabled is true, show white
+            // Disabled but force white text
             if (!optionButton.enabled && optionButton.forceWhiteWhenDisabled) {
-                return "#FFFFFF"
+                return "#46306B"
             }
-            return optionButton.enabled ? "#FFFFFF" : "#CCCCCC"
+            // Default unselected
+            return optionButton.enabled ? "#46306B" : "#46306B"
         }
         radius: 12
         border.color: {
-            // If highlighted, always show highlight color border
             if (optionButton.isHighlighted) {
                 return optionButton.highlightColor
             }
-            return "#DDDDDD"
+            return "#46306B"
         }
         border.width: 2
         
@@ -72,19 +72,18 @@ Button {
         textFormat: Text.PlainText  // Force plain text, don't interpret HTML
         font: optionButton.font
         color: {
-            // If highlighted, always show white text
             if (optionButton.isHighlighted) {
                 return "#FFFFFF"
             }
-            // If disabled but forceWhiteWhenDisabled is true, show normal text color
             if (!optionButton.enabled && optionButton.forceWhiteWhenDisabled) {
-                return "#333333"
+                return "#EDE7F6"
             }
-            // Otherwise, show default color (dark/gray based on enabled)
-            return optionButton.enabled ? "#333333" : "#666666"
+            return optionButton.enabled ? "#EDE7F6" : "#B9A7D9"
         }
-        horizontalAlignment: Text.AlignHCenter
+        horizontalAlignment: Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
+        leftPadding: 15
+        rightPadding: 15
         wrapMode: Text.WordWrap
         elide: Text.ElideNone  // Don't elide text
         
@@ -95,14 +94,13 @@ Button {
     }
     
     function resetStyle() {
-        // Force reset to default colors based on enabled state
         isHighlighted = false
-        bgRect.color = optionButton.enabled ? "#FFFFFF" : "#CCCCCC"
-        bgRect.border.color = "#DDDDDD"
-        textItem.color = optionButton.enabled ? "#333333" : "#666666"
+        bgRect.color = "#46306B"
+        bgRect.border.color = "#46306B"
+        textItem.color = "#EDE7F6"
     }
     
-    property color highlightColor: "#FFFFFF"  // Store highlight color
+    property color highlightColor: "#FFC107"  // Selected answer color (vàng đậm)
     property bool isHighlighted: false
     
     function highlight(color) {

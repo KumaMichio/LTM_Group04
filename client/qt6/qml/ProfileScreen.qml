@@ -71,7 +71,13 @@ Item {
                 Layout.preferredHeight: 40
                 color: "transparent"
 
-                Text { anchors.centerIn: parent; text: "←"; font.pixelSize: 24; color: "#FFFFFF" }
+                Image { 
+                    anchors.centerIn: parent
+                    source: "qrc:/icons/arrow-left.svg"
+                    width: 24
+                    height: 24
+                    sourceSize: Qt.size(24, 24)
+                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -94,11 +100,13 @@ Item {
                 Layout.preferredHeight: 40
                 color: "transparent"
 
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "🔄"
-                    font.pixelSize: 20
-                    color: isLoading ? "#B0B0B0" : "#FFFFFF"
+                    source: "qrc:/icons/refresh-cw.svg"
+                    width: 24
+                    height: 24
+                    sourceSize: Qt.size(24, 24)
+                    opacity: isLoading ? 0.5 : 1.0
                 }
 
                 MouseArea {

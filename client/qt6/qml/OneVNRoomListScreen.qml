@@ -96,8 +96,8 @@ Item {
     
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 24
-        anchors.rightMargin: 24
+        anchors.leftMargin: 45
+        anchors.rightMargin: 45
         anchors.topMargin: 24
         anchors.bottomMargin: 24
         spacing: 0
@@ -134,7 +134,7 @@ Item {
             // Title
             Text {
                 Layout.fillWidth: true
-                text: "🏠 Danh sách phòng"
+                text: "Danh sách phòng"
                 font.family: "Lexend"
                 font.pixelSize: 20
                 font.bold: true

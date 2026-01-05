@@ -54,8 +54,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#667eea" }
-            GradientStop { position: 1.0; color: "#764ba2" }
+            GradientStop { position: 0.0; color: "#241437" }
+            GradientStop { position: 1.0; color: "#2A1845" }
         }
     }
 
@@ -104,11 +104,12 @@ Item {
                             radius: 20
                             color: Qt.rgba(1.0, 1.0, 1.0, 0.2)
 
-                            Text {
+                            Image {
                                 anchors.centerIn: parent
-                                text: "←"
-                                font.pixelSize: 24
-                                color: "#FFFFFF"
+                                source: "qrc:/icons/arrow-left.svg"
+                                width: 20
+                                height: 20
+                                sourceSize: Qt.size(20, 20)
                             }
 
                             MouseArea {
@@ -147,10 +148,20 @@ Item {
                     Rectangle {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 320
-                        radius: 20
+                        radius: 24
                         color: "#FFFFFF"
-                        border.color: "#E0E0E0"
-                        border.width: 1
+                        border.width: 0
+                        
+                        // Shadow effect using rectangle layers
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            radius: parent.radius + 4
+                            color: "transparent"
+                            border.color: "#20000000"
+                            border.width: 8
+                            z: -1
+                        }
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -193,9 +204,9 @@ Item {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 80
                                         radius: 10
-                                        color: "#E8F5E9"
-                                        border.color: "#4CAF50"
-                                        border.width: 2
+                                        color: "#FFFFFF"
+                                        border.color: "#4A3C6D"
+                                        border.width: 1
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -208,7 +219,7 @@ Item {
                                                 font.family: "Lexend"
                                                 font.pixelSize: 12
                                                 font.bold: true
-                                                color: "#2E7D32"
+                                                color: "#4CAF50"
                                                 horizontalAlignment: Text.AlignHCenter
                                             }
 
@@ -234,7 +245,7 @@ Item {
                                                     font.family: "Lexend"
                                                     font.pixelSize: 18
                                                     font.bold: true
-                                                    color: "#2E7D32"
+                                                    color: "#4CAF50"
                                                     horizontalAlignment: Text.AlignHCenter
                                                 }
 
@@ -265,9 +276,9 @@ Item {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 80
                                         radius: 10
-                                        color: "#FFF3E0"
-                                        border.color: "#FF9800"
-                                        border.width: 2
+                                        color: "#FFFFFF"
+                                        border.color: "#4A3C6D"
+                                        border.width: 1
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -280,7 +291,7 @@ Item {
                                                 font.family: "Lexend"
                                                 font.pixelSize: 12
                                                 font.bold: true
-                                                color: "#E65100"
+                                                color: "#FFC107"
                                                 horizontalAlignment: Text.AlignHCenter
                                             }
 
@@ -306,7 +317,7 @@ Item {
                                                     font.family: "Lexend"
                                                     font.pixelSize: 18
                                                     font.bold: true
-                                                    color: "#E65100"
+                                                    color: "#FFC107"
                                                     horizontalAlignment: Text.AlignHCenter
                                                 }
 
@@ -337,9 +348,9 @@ Item {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 80
                                         radius: 10
-                                        color: "#FFEBEE"
-                                        border.color: "#F44336"
-                                        border.width: 2
+                                        color: "#FFFFFF"
+                                        border.color: "#4A3C6D"
+                                        border.width: 1
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -352,7 +363,7 @@ Item {
                                                 font.family: "Lexend"
                                                 font.pixelSize: 12
                                                 font.bold: true
-                                                color: "#C62828"
+                                                color: "#D32F2F"
                                                 horizontalAlignment: Text.AlignHCenter
                                             }
 
@@ -378,7 +389,7 @@ Item {
                                                     font.family: "Lexend"
                                                     font.pixelSize: 18
                                                     font.bold: true
-                                                    color: "#C62828"
+                                                    color: "#D32F2F"
                                                     horizontalAlignment: Text.AlignHCenter
                                                 }
 
@@ -405,14 +416,14 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 50
                                 radius: 12
-                                color: "#4CAF50"
+                                color: "#FFC107"
                                 Text {
                                     anchors.centerIn: parent
                                     text: "Tạo phòng"
                                     font.family: "Lexend"
                                     font.pixelSize: 16
                                     font.bold: true
-                                    color: "#FFFFFF"
+                                    color: "#1D0F2E"
                                 }
                                 MouseArea {
                                     anchors.fill: parent
@@ -493,7 +504,9 @@ Component {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         radius: panelRadius
-                        color: Qt.rgba(1.0, 1.0, 1.0, 0.95)
+                        color: "#3A2A5E"
+                        border.color: "#4A3C6D"
+                        border.width: 1
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -506,15 +519,15 @@ Component {
                                 font.family: "Lexend"
                                 font.pixelSize: 16
                                 font.bold: true
-                                color: "#333333"
+                                color: "#FFFFFF"
                             }
 
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 radius: 10
-                                color: "#F9F9F9"
-                                border.color: "#E0E0E0"
+                                color: "#2D2047"
+                                border.color: "#4A3C6D"
                                 border.width: 1
 
                                 ListView {
@@ -527,7 +540,7 @@ Component {
                                         width: ListView.view.width
                                         height: 42
                                         radius: 8
-                                        color: index % 2 === 0 ? "#FFFFFF" : "#F5F5F5"
+                                        color: index % 2 === 0 ? "#362958" : "#2D2047"
 
                                         property var member: membersList[index] || {}
 
@@ -560,7 +573,7 @@ Component {
                                                 }
                                                 font.family: "Lexend"
                                                 font.pixelSize: 14
-                                                color: "#333333"
+                                                color: "#E0E0E0"
                                                 elide: Text.ElideRight
                                             }
                                         }
@@ -577,7 +590,7 @@ Component {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         radius: panelRadius
-                        color: Qt.rgba(1.0, 1.0, 1.0, 0.95)
+                        color: "#3A2A5E"
 
                         ColumnLayout {
                             anchors.fill: parent
@@ -590,15 +603,15 @@ Component {
                                 font.family: "Lexend"
                                 font.pixelSize: 16
                                 font.bold: true
-                                color: "#667eea"
+                                color: "#FFFFFF"
                             }
 
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
                                 radius: 10
-                                color: "#F9F9F9"
-                                border.color: "#E0E0E0"
+                                color: "#2D2047"
+                                border.color: "#4A3C6D"
                                 border.width: 1
 
                                 ListView {
@@ -620,7 +633,7 @@ Component {
                                             textFormat: Text.RichText
                                             font.family: "Lexend"
                                             font.pixelSize: 12
-                                            color: "#333333"
+                                            color: "#E0E0E0"
                                             wrapMode: Text.WordWrap
                                         }
                                     }
@@ -640,11 +653,12 @@ Component {
                                     placeholderText: "Nhập tin nhắn..."
                                     font.family: "Lexend"
                                     font.pixelSize: 12
+                                    color: "#FFFFFF"
 
                                     background: Rectangle {
                                         radius: 19
-                                        color: "#FFFFFF"
-                                        border.color: "#E0E0E0"
+                                        color: "#362958"
+                                        border.color: "#4A3C6D"
                                         border.width: 1
                                     }
 
@@ -700,10 +714,7 @@ Component {
                         font.bold: true
 
                         background: Rectangle {
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "#1e88e5" }
-                                GradientStop { position: 1.0; color: "#1565c0" }
-                            }
+                            color: "#6A4BA5"
                             radius: 10
                         }
 
@@ -733,17 +744,14 @@ Component {
                         font.bold: true
 
                         background: Rectangle {
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "#4CAF50" }
-                                GradientStop { position: 1.0; color: "#45a049" }
-                            }
+                            color: "#FFC107"
                             radius: 10
                         }
 
                         contentItem: Text {
                             text: parent.text
                             font: parent.font
-                            color: "#FFFFFF"
+                            color: "#1D0F2E"
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
                         }
@@ -760,10 +768,7 @@ Component {
                         font.bold: true
 
                         background: Rectangle {
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: "#f44336" }
-                                GradientStop { position: 1.0; color: "#d32f2f" }
-                            }
+                            color: "#D32F2F"
                             radius: 10
                         }
 
@@ -843,7 +848,9 @@ Component {
                             Layout.fillWidth: true
                             Layout.preferredHeight: Math.max(220, oneVNMode.height * 0.28)
                             radius: panelRadius
-                            color: Qt.rgba(1.0, 1.0, 1.0, 0.95)
+                            color: "#3A2A5E"
+                            border.color: "#4A3C6D"
+                            border.width: 1
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -856,15 +863,15 @@ Component {
                                     font.family: "Lexend"
                                     font.pixelSize: 16
                                     font.bold: true
-                                    color: "#333333"
+                                    color: "#FFFFFF"
                                 }
 
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     radius: 10
-                                    color: "#F9F9F9"
-                                    border.color: "#E0E0E0"
+                                    color: "#2D2047"
+                                    border.color: "#4A3C6D"
                                     border.width: 1
 
                                     ListView {
@@ -877,7 +884,7 @@ Component {
                                             width: ListView.view.width
                                             height: 42
                                             radius: 8
-                                            color: index % 2 === 0 ? "#FFFFFF" : "#F5F5F5"
+                                            color: index % 2 === 0 ? "#362958" : "#2D2047"
 
                                             property var member: membersList[index] || {}
 
@@ -910,7 +917,7 @@ Component {
                                                     }
                                                     font.family: "Lexend"
                                                     font.pixelSize: 14
-                                                    color: "#333333"
+                                                    color: "#E0E0E0"
                                                     elide: Text.ElideRight
                                                 }
                                             }
@@ -927,7 +934,7 @@ Component {
                             Layout.fillWidth: true
                             Layout.preferredHeight: Math.max(260, oneVNMode.height * 0.34)
                             radius: panelRadius
-                            color: Qt.rgba(1.0, 1.0, 1.0, 0.95)
+                            color: "#3A2A5E"
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -940,15 +947,15 @@ Component {
                                     font.family: "Lexend"
                                     font.pixelSize: 16
                                     font.bold: true
-                                    color: "#667eea"
+                                    color: "#FFFFFF"
                                 }
 
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     radius: 10
-                                    color: "#F9F9F9"
-                                    border.color: "#E0E0E0"
+                                    color: "#2D2047"
+                                    border.color: "#4A3C6D"
                                     border.width: 1
 
                                     ListView {
@@ -970,7 +977,7 @@ Component {
                                                 textFormat: Text.RichText
                                                 font.family: "Lexend"
                                                 font.pixelSize: 12
-                                                color: "#333333"
+                                                color: "#E0E0E0"
                                                 wrapMode: Text.WordWrap
                                             }
                                         }
@@ -990,11 +997,12 @@ Component {
                                         placeholderText: "Nhập tin nhắn..."
                                         font.family: "Lexend"
                                         font.pixelSize: 12
+                                        color: "#FFFFFF"
 
                                         background: Rectangle {
                                             radius: 19
-                                            color: "#FFFFFF"
-                                            border.color: "#E0E0E0"
+                                            color: "#362958"
+                                            border.color: "#4A3C6D"
                                             border.width: 1
                                         }
 
@@ -1048,10 +1056,7 @@ Component {
                                 font.pixelSize: 14
                                 font.bold: true
                                 background: Rectangle {
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: "#1e88e5" }
-                                        GradientStop { position: 1.0; color: "#1565c0" }
-                                    }
+                                    color: "#6A4BA5"
                                     radius: 10
                                 }
                                 contentItem: Text {
@@ -1078,16 +1083,13 @@ Component {
                                 font.pixelSize: 14
                                 font.bold: true
                                 background: Rectangle {
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: "#4CAF50" }
-                                        GradientStop { position: 1.0; color: "#45a049" }
-                                    }
+                                    color: "#FFC107"
                                     radius: 10
                                 }
                                 contentItem: Text {
                                     text: parent.text
                                     font: parent.font
-                                    color: "#FFFFFF"
+                                    color: "#1D0F2E"
                                     horizontalAlignment: Text.AlignHCenter
                                     verticalAlignment: Text.AlignVCenter
                                 }
@@ -1102,10 +1104,7 @@ Component {
                                 font.pixelSize: 14
                                 font.bold: true
                                 background: Rectangle {
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: "#f44336" }
-                                        GradientStop { position: 1.0; color: "#d32f2f" }
-                                    }
+                                    color: "#D32F2F"
                                     radius: 10
                                 }
                                 contentItem: Text {
@@ -1406,7 +1405,7 @@ Component {
 
             Text {
                 Layout.fillWidth: true
-                text: "🏆 KẾT THÚC GAME 🏆"
+                text: "KẾT THÚC GAME"
                 font.family: "Lexend"
                 font.pixelSize: 28
                 font.bold: true
@@ -1482,7 +1481,7 @@ Component {
             Button {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 60
-                text: "🏠 Về menu chính"
+                text: "Về menu chính"
                 font.family: "Lexend"
                 font.pixelSize: 16
                 font.bold: true

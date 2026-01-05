@@ -12,7 +12,7 @@ ScrollView {
     property StackView stackView
     
     ColumnLayout {
-        width: parent.width - 48
+        width: parent.width - 90
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 0
         

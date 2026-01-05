@@ -26,8 +26,8 @@ Item {
     
     ColumnLayout {
         anchors.fill: parent
-        anchors.leftMargin: 24
-        anchors.rightMargin: 24
+        anchors.leftMargin: 45
+        anchors.rightMargin: 45
         anchors.topMargin: 24
         anchors.bottomMargin: 24
         spacing: 0
@@ -44,11 +44,12 @@ Item {
                 Layout.preferredHeight: 40
                 color: "transparent"
                 
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "←"
-                    font.pixelSize: 24
-                    color: "#FFFFFF"
+                    source: "qrc:/icons/arrow-left.svg"
+                    width: 24
+                    height: 24
+                    sourceSize: Qt.size(24, 24)
                 }
                 
                 MouseArea {
@@ -64,7 +65,7 @@ Item {
             // Title
             Text {
                 Layout.fillWidth: true
-                text: "🏆 Bảng Xếp Hạng"
+                text: "Bảng Xếp Hạng"
                 font.family: "Lexend"
                 font.pixelSize: 20
                 font.bold: true
@@ -77,11 +78,13 @@ Item {
                 Layout.preferredHeight: 40
                 color: "transparent"
                 
-                Text {
+                Image {
                     anchors.centerIn: parent
-                    text: "🔄"
-                    font.pixelSize: 20
-                    color: isLoading ? "#B0B0B0" : "#FFFFFF"
+                    source: "qrc:/icons/refresh-cw.svg"
+                    width: 24
+                    height: 24
+                    sourceSize: Qt.size(24, 24)
+                    opacity: isLoading ? 0.5 : 1.0
                 }
                 
                 MouseArea {

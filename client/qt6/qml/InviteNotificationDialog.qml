@@ -13,6 +13,8 @@ Dialog {
     property string inviterName: ""
     property int roomId: 0
     property int fromUserId: 0
+    property StackView stackView: null
+    property string username: ""
     
     background: Rectangle {
         color: "#2a2a2a"
@@ -145,6 +147,16 @@ Dialog {
             if (success && roomId === inviteDialog.roomId) {
                 console.log("[INVITE] Successfully joined room " + roomId)
                 inviteDialog.close()
+                
+                // Navigate to OneVNMode waiting room
+                if (inviteDialog.stackView) {
+                    inviteDialog.stackView.push("OneVNMode.qml", {
+                        "stackView": inviteDialog.stackView,
+                        "username": inviteDialog.username,
+                        "isJoiningRoom": true,
+                        "roomId": roomId
+                    })
+                }
             } else if (!success) {
                 console.log("[INVITE] Failed to join room: " + error)
                 errorDialog.text = "Không thể vào phòng: " + error
