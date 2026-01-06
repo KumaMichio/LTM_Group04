@@ -106,7 +106,7 @@ Item {
             // Title
             Text {
                 Layout.fillWidth: true
-                text: "🎬 Replay Game"
+                text: "Replay Game"
                 font.family: "Lexend"
                 font.pixelSize: 20
                 font.bold: true

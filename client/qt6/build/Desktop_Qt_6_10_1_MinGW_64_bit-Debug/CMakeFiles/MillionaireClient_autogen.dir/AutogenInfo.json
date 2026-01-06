@@ -914,7 +914,8 @@
 		"C:/Qt/6.10.1/mingw_64/lib/cmake/Qt6/QtPublicWindowsHelpers.cmake",
 		"C:/Qt/Tools/CMake_64/share/cmake-3.30/Modules/CMakeFindDependencyMacro.cmake",
 		"C:/Qt/6.10.1/mingw_64/lib/cmake/Qt6/Qt6Dependencies.cmake",
-		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/qml.qrc"
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/qml.qrc",
+		"C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6/resources/resources.qrc"
 	],
 	"CMAKE_SOURCE_DIR" : "C:/Users/admin/Desktop/LTM_HW/Project102/LTM_Group04/client/qt6",
 	"CROSS_CONFIG" : false,

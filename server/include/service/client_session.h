@@ -12,7 +12,8 @@
 typedef enum {
 	USER_STATUS_ONLINE = 0,          // In lobby
 	USER_STATUS_IN_WAITING_ROOM = 1, // In room waiting
-	USER_STATUS_IN_GAME = 2          // Playing game (QuickMode or 1vN)
+	USER_STATUS_IN_GAME = 2,         // Playing game (QuickMode or 1vN)
+	USER_STATUS_OFFLINE = 3          // Logged out / disconnected intentionally
 } UserStatus;
 
 typedef struct ClientSession {

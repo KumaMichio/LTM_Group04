@@ -12,9 +12,6 @@
 #include "service/client_session.h"
 #include "utils/json.h"
 
-// Quickmode không lưu vào DB, chỉ lưu trong memory
-// Chơi xong là xong, không update stats
-
 // Static linked list để quản lý active sessions
 static QuickModeSession *active_sessions = NULL;
 

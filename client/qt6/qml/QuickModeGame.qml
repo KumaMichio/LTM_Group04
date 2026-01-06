@@ -10,6 +10,9 @@ Item {
     
     property StackView stackView
     property string username: ""
+    property int timeLimit: 15
+    property int timeRemaining: 15
+    property bool timeExpiredHandled: false
     
     // Game state
     property real sessionId: 0  // Use real to handle large session IDs
@@ -30,15 +33,86 @@ Item {
     property string optionD: ""
     property string correctAnswer: ""
     
-    // Background gradient
+    // Background gradient (dark purple)
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#f093fb" }
-            GradientStop { position: 1.0; color: "#f5576c" }
+            GradientStop { position: 0.0; color: "#241437" }
+            GradientStop { position: 1.0; color: "#2A1845" }
         }
     }
     
+    // Back button overlay
+    Rectangle {
+        width: 40
+        height: 40
+        radius: 12
+        color: "#46306B"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.leftMargin: 20
+        anchors.topMargin: 20
+        opacity: 0.9
+        border.color: "#6A4BA5"
+        border.width: 1
+
+        Image {
+            anchors.centerIn: parent
+            source: "qrc:/icons/arrow-left.svg"
+            width: 20
+            height: 20
+            sourceSize: Qt.size(20, 20)
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                if (stackView) {
+                    stackView.pop()
+                }
+            }
+        }
+    }
+
+    // Timer badge
+    Rectangle {
+        id: timerBadge
+        width: 96
+        height: 40
+        radius: 12
+        color: "#46306B"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: 32
+        anchors.topMargin: 20
+        opacity: 0.9
+        border.color: "#6A4BA5"
+        border.width: 1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 10
+            spacing: 6
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: "Thời gian"
+                font.family: "Lexend"
+                font.pixelSize: 12
+                color: "#EDE7F6"
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: timeRemaining + "s"
+                font.family: "Lexend"
+                font.pixelSize: 16
+                font.bold: true
+                color: timeRemaining > 3 ? "#FFC107" : "#E53935"
+            }
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 30
@@ -47,7 +121,7 @@ Item {
         // Score label
         Text {
             Layout.fillWidth: true
-            text: "📊 Câu hỏi: " + currentRound + "/" + totalRounds
+            text: "Câu hỏi: " + currentRound + "/" + totalRounds
             font.family: "Lexend"
             font.pixelSize: 18
             font.bold: true
@@ -60,7 +134,9 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 150
             radius: 15
-            color: "white"
+            color: "#443270"
+            border.color: "#6A4BA5"
+            border.width: 1
             
             ScrollView {
                 anchors.fill: parent
@@ -73,7 +149,7 @@ Item {
                     font.family: "Lexend"
                     font.pixelSize: 18
                     font.bold: true
-                    color: "#333333"
+                    color: "#FFFFFF"
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter
                 }
@@ -87,11 +163,13 @@ Item {
             columns: 2
             columnSpacing: 15
             rowSpacing: 15
+            uniformCellWidths: true
             
             GameOptionButton {
                 id: optionAButton
                 Layout.fillWidth: true
                 Layout.preferredHeight: 80
+                Layout.minimumWidth: 0
                 optionText: "A: " + optionA
                 optionLetter: "A"
                 enabled: !waitingForAnswer && optionA.length > 0
@@ -103,6 +181,7 @@ Item {
                 id: optionBButton
                 Layout.fillWidth: true
                 Layout.preferredHeight: 80
+                Layout.minimumWidth: 0
                 optionText: "B: " + optionB
                 optionLetter: "B"
                 enabled: !waitingForAnswer && optionB.length > 0
@@ -114,6 +193,7 @@ Item {
                 id: optionCButton
                 Layout.fillWidth: true
                 Layout.preferredHeight: 80
+                Layout.minimumWidth: 0
                 optionText: "C: " + optionC
                 optionLetter: "C"
                 enabled: !waitingForAnswer && optionC.length > 0
@@ -125,6 +205,7 @@ Item {
                 id: optionDButton
                 Layout.fillWidth: true
                 Layout.preferredHeight: 80
+                Layout.minimumWidth: 0
                 optionText: "D: " + optionD
                 optionLetter: "D"
                 enabled: !waitingForAnswer && optionD.length > 0
@@ -133,35 +214,56 @@ Item {
             }
         }
         
-        // Lifeline button
-        Button {
+        // Lifeline button (compact pill)
+        RowLayout {
             Layout.fillWidth: true
+            Layout.alignment: Qt.AlignRight
             Layout.preferredHeight: 50
-            text: lifelineRemaining > 0 ? "50:50 (" + lifelineRemaining + ")" : "50:50 (Hết)"
-            enabled: !waitingForAnswer && lifelineRemaining > 0 && optionA.length > 0
-            font.family: "Lexend"
-            font.pixelSize: 14
-            font.bold: true
-            
-            background: Rectangle {
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#FF9800" }
-                    GradientStop { position: 1.0; color: "#F57C00" }
+
+            Item { Layout.fillWidth: true }
+
+            Rectangle {
+                Layout.preferredWidth: 130
+                Layout.preferredHeight: 38
+                radius: 19
+                color: (!waitingForAnswer && lifelineRemaining > 0 && optionA.length > 0) ? "#FFB300" : "#7A5E1A"
+                border.color: "#FFC107"
+                border.width: 1
+                opacity: 0.95
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 6
+
+                    Image {
+                        source: "qrc:/icons/refresh-cw.svg"
+                        width: 18
+                        height: 18
+                        sourceSize: Qt.size(18, 18)
+                        opacity: (lifelineRemaining > 0) ? 1.0 : 0.5
+                    }
+
+                    Text {
+                        text: lifelineRemaining > 0 ? "50:50 (" + lifelineRemaining + ")" : "50:50 (Hết)"
+                        font.family: "Lexend"
+                        font.pixelSize: 13
+                        font.bold: true
+                        color: "#1D0F2E"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
                 }
-                radius: 10
-            }
-            
-            contentItem: Text {
-                text: parent.text
-                font: parent.font
-                color: "#FFFFFF"
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-            
-            onClicked: {
-                if (sessionId > 0 && currentRound > 0) {
-                    networkClient.sendUseLifeline(sessionId, currentRound)
+
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !waitingForAnswer && lifelineRemaining > 0 && optionA.length > 0
+                    onClicked: {
+                        if (sessionId > 0 && currentRound > 0) {
+                            networkClient.sendUseLifeline(sessionId, currentRound)
+                        }
+                    }
                 }
             }
         }
@@ -182,6 +284,25 @@ Item {
                 waitingForAnswer = false
                 toastMessage.show("Không nhận được phản hồi từ server", "#FF5252")
                 resetButtonStyles()
+            }
+        }
+    }
+
+    // Countdown timer per question
+    Timer {
+        id: questionTimer
+        interval: 1000
+        repeat: true
+        running: false
+        onTriggered: {
+            if (timeRemaining > 0) {
+                timeRemaining--
+            }
+            if (timeRemaining <= 0) {
+                running = false
+                if (!timeExpiredHandled) {
+                    handleTimeExpired()
+                }
             }
         }
     }
@@ -259,6 +380,9 @@ Item {
             waitingForAnswer = false
             answerSubmitted = false
             selectedAnswer = ""
+            timeRemaining = timeLimit
+            timeExpiredHandled = false
+            questionTimer.restart()
             
             // Reset all options to empty first (important for 50:50 lifeline cleanup)
             optionA = ""
@@ -317,6 +441,7 @@ Item {
             if (gameSessionId !== sessionId) return
             
             answerTimeoutTimer.stop()
+            questionTimer.stop()
             
             // IMPORTANT: Keep buttons disabled until next question arrives
             // DO NOT reset waitingForAnswer and answerSubmitted here
@@ -440,6 +565,7 @@ Item {
         answerSubmitted = true
         selectedAnswer = answer
         waitingForAnswer = true  // This will disable buttons via binding
+        questionTimer.stop()
         
         console.log("Answer selected, flags set to prevent double-click")
         
@@ -491,11 +617,33 @@ Item {
     }
     
     function highlightAnswer(answer, isCorrect) {
-        var color = isCorrect ? "#4CAF50" : "#f44336"
+        var color = isCorrect ? "#4CAF50" : "#E53935"
         if (answer === "A") optionAButton.highlight(color)
         else if (answer === "B") optionBButton.highlight(color)
         else if (answer === "C") optionCButton.highlight(color)
         else if (answer === "D") optionDButton.highlight(color)
+    }
+
+    function handleTimeExpired() {
+        if (timeExpiredHandled) return
+        timeExpiredHandled = true
+        questionTimer.stop()
+        answerTimeoutTimer.stop()
+        waitingForAnswer = true
+        answerSubmitted = true
+        optionAButton.enabled = false
+        optionBButton.enabled = false
+        optionCButton.enabled = false
+        optionDButton.enabled = false
+
+        var answeredCount = currentRound > 0 ? currentRound - 1 : 0
+        if (stackView) {
+            stackView.replace("LoseScreen.qml", {
+                "stackView": stackView,
+                "username": username,
+                "questionsAnswered": answeredCount
+            })
+        }
     }
 }
 

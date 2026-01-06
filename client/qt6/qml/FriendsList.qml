@@ -395,33 +395,37 @@ Item {
     
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 20
+        anchors.leftMargin: 45
+        anchors.rightMargin: 45
+        anchors.topMargin: 20
+        anchors.bottomMargin: 20
         spacing: 15
         
         // Header
         RowLayout {
             Layout.fillWidth: true
             
-                Button {
-                    text: "←"
-                    font.pixelSize: 20
-                    flat: true
+            Rectangle {
+                Layout.preferredWidth: 40
+                Layout.preferredHeight: 40
+                color: "transparent"
+                
+                Image {
+                    anchors.centerIn: parent
+                    source: "qrc:/icons/arrow-left.svg"
+                    width: 24
+                    height: 24
+                    sourceSize: Qt.size(24, 24)
+                }
+                
+                MouseArea {
+                    anchors.fill: parent
                     onClicked: {
                         console.log("FriendsList back button clicked")
-                        console.log("stackView:", stackView)
-                        console.log("StackView depth:", stackView ? stackView.depth : "null")
                         if (stackView) {
-                            var result = stackView.pop()
-                            console.log("pop() result:", result)
-                        } else {
-                            console.log("ERROR: stackView is null!")
+                            stackView.pop()
                         }
                     }
-                
-                contentItem: Text {
-                    text: parent.text
-                    font: parent.font
-                    color: "#FFFFFF"
                 }
             }
             
@@ -452,9 +456,11 @@ Item {
                 anchors.margins: 10
                 spacing: 10
                 
-                Text {
-                    text: "🔍"
-                    font.pixelSize: 18
+                Image {
+                    source: "qrc:/icons/search.svg"
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    sourceSize: Qt.size(20, 20)
                 }
                 
                 TextField {

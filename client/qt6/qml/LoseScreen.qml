@@ -15,8 +15,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#ee0979" }
-            GradientStop { position: 1.0; color: "#ff6a00" }
+            GradientStop { position: 0.0; color: "#241437" }
+            GradientStop { position: 1.0; color: "#2A1845" }
         }
     }
     
@@ -32,39 +32,47 @@ Item {
             Layout.fillWidth: true
             Layout.preferredHeight: 80
             radius: 15
-            color: "white"
-            border.color: "#f44336"
-            border.width: 3
+            color: "#3A2A5E"
+            border.color: "#D32F2F"
+            border.width: 1
             
             Text {
                 anchors.centerIn: parent
-                text: "😔 Rất tiếc!"
+                text: "Rất tiếc!"
                 font.family: "Lexend"
                 font.pixelSize: 36
                 font.bold: true
-                color: "#f44336"
+                color: "#D32F2F"
             }
         }
         
         // Message
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 200
+            Layout.preferredHeight: 120
             radius: 10
-            color: Qt.rgba(1.0, 1.0, 1.0, 0.2)
+            color: "#3A2A5E"
             
-            Text {
+            ColumnLayout {
                 anchors.centerIn: parent
-                width: parent.width - 40
-                text: "❌ Bạn đã trả lời sai!\n\n" +
-                      "📊 Số câu đã trả lời đúng: " + questionsAnswered + "\n\n" +
-                      "💪 Hãy thử lại lần sau! 💪"
-                font.family: "Lexend"
-                font.pixelSize: 16
-                font.bold: true
-                color: "#FFFFFF"
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.WordWrap
+                spacing: 12
+                
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Trả lời sai"
+                    font.family: "Lexend"
+                    font.pixelSize: 20
+                    font.bold: true
+                    color: "#FFFFFF"
+                }
+                
+                Text {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: "Đúng: " + questionsAnswered + " / 15"
+                    font.family: "Lexend"
+                    font.pixelSize: 18
+                    color: "#B9A7D9"
+                }
             }
         }
         
@@ -72,23 +80,20 @@ Item {
         Button {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
-            text: "🔄 Chơi lại"
+            text: "Chơi lại"
             font.family: "Lexend"
             font.pixelSize: 14
             font.bold: true
             
             background: Rectangle {
-                gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#f093fb" }
-                    GradientStop { position: 1.0; color: "#f5576c" }
-                }
+                color: "#FFC107"
                 radius: 12
             }
             
             contentItem: Text {
                 text: parent.text
                 font: parent.font
-                color: "#FFFFFF"
+                color: "#1D0F2E"
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
@@ -107,15 +112,15 @@ Item {
         Button {
             Layout.fillWidth: true
             Layout.preferredHeight: 60
-            text: "🏠 Về menu chính"
+            text: "Về menu chính"
             font.family: "Lexend"
             font.pixelSize: 14
             font.bold: true
             
             background: Rectangle {
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: "#667eea" }
-                    GradientStop { position: 1.0; color: "#764ba2" }
+                    GradientStop { position: 0.0; color: "#5D4586" }
+                    GradientStop { position: 1.0; color: "#3A2A5E" }
                 }
                 radius: 12
             }

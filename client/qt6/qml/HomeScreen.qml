@@ -6,32 +6,26 @@ Item {
     id: homeScreen
     width: parent ? parent.width : 360
     height: parent ? parent.height : 640
-    
+
     property StackView stackView
     property string username: ""
     property int userId: 0
-    property int points: 0
-    property string rank: "Bronze"
-    
+
     // Unread messages tracking
     property bool hasUnreadMessages: false
-    
+
     // Avatar data
     property string avatarPath: ""
     property string avatarSource: {
         if (avatarPath && avatarPath !== "") {
             var imgPath = avatarPath
-            // Convert file path to file:// URL format
             if (!imgPath.startsWith("file://") && !imgPath.startsWith("http://") && !imgPath.startsWith("https://") && !imgPath.startsWith("qrc://")) {
                 imgPath = imgPath.replace(/\\/g, "/")
                 if (imgPath.length > 1 && imgPath[1] === ':') {
-                    // Windows absolute path (C:/...)
                     imgPath = "file:///" + imgPath
                 } else if (imgPath.length > 0 && imgPath[0] === '/') {
-                    // Unix absolute path (/...)
                     imgPath = "file://" + imgPath
                 } else {
-                    // Relative path
                     imgPath = "file:///" + imgPath
                 }
             }
@@ -39,120 +33,114 @@ Item {
         }
         return ""
     }
-    
+
+    // ===== Responsive tuning (chỉ cần chỉnh các giá trị này nếu muốn) =====
+    // scale theo chiều rộng/chiều cao, có clamp để không quá nhỏ/quá to
+    readonly property real uiScale: {
+        var s = Math.min(width / 360.0, height / 640.0)
+        if (s < 0.85) s = 0.85
+        if (s > 1.25) s = 1.25
+        return s
+    }
+
+    readonly property int pagePad: Math.round(24 * uiScale)
+    readonly property int topBarH: Math.round(56 * uiScale)
+    readonly property int bottomNavH: Math.round(64 * uiScale)
+
+    readonly property int cardRadius: Math.round(16 * uiScale)
+    readonly property int cardPad: Math.round(20 * uiScale)
+    readonly property int gap: Math.round(16 * uiScale)
+
+    readonly property int titleSize: Math.round(20 * uiScale)
+    readonly property int descSize: Math.round(14 * uiScale)
+    readonly property int btnTextSize: Math.round(16 * uiScale)
+    readonly property int btnH: Math.round(48 * uiScale)
+
+    // tránh card quá rộng trên màn hình rất lớn → canh giữa
+    readonly property int maxContentWidth: 520   // bạn có thể tăng/giảm
+
     // Background color
     Rectangle {
         anchors.fill: parent
         color: "#2E1A47"
     }
-    
+
     ColumnLayout {
         id: mainColumn
         anchors.fill: parent
-        anchors.leftMargin: 24
-        anchors.rightMargin: 24
-        anchors.topMargin: 24
-        anchors.bottomMargin: 24
+        anchors.leftMargin: pagePad
+        anchors.rightMargin: pagePad
+        anchors.topMargin: pagePad
+        anchors.bottomMargin: pagePad
         spacing: 0
-        
-        // Top Bar (56px)
+
+        // ===================== Top Bar =====================
         Rectangle {
             id: topBar
             Layout.fillWidth: true
-            Layout.preferredHeight: 56
+            Layout.preferredHeight: topBarH
             color: "transparent"
-            
+
             RowLayout {
                 anchors.fill: parent
-                spacing: 12
-                
-                // Avatar (36x36)
+                spacing: Math.round(12 * uiScale)
+
+                // Avatar
                 Rectangle {
-                    Layout.preferredWidth: 36
-                    Layout.preferredHeight: 36
-                    radius: 18
+                    Layout.preferredWidth: Math.round(36 * uiScale)
+                    Layout.preferredHeight: Math.round(36 * uiScale)
+                    radius: Math.round(18 * uiScale)
                     color: "#5D4586"
                     clip: true
-                    
-                    // Avatar image
+
                     Image {
                         anchors.fill: parent
                         source: avatarSource
                         fillMode: Image.PreserveAspectCrop
                         visible: avatarSource !== ""
                     }
-                    
-                    // Initial letter fallback
+
                     Text {
                         anchors.centerIn: parent
                         text: username.length > 0 ? username.charAt(0).toUpperCase() : "U"
                         font.family: "Lexend"
-                        font.pixelSize: 18
+                        font.pixelSize: Math.round(18 * uiScale)
                         font.bold: true
                         color: "#FFFFFF"
                         visible: avatarSource === ""
                     }
                 }
-                
-                // Username and Points/Rank
-                Column {
+
+                // Username only (đã bỏ pts/rank)
+                Text {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: 2
-                    
-                    Text {
-                        text: username
-                        font.family: "Lexend"
-                        font.pixelSize: 14
-                        font.bold: true
-                        color: "#FFFFFF"
-                    }
-                    
-                    Text {
-                        text: points + " điểm • " + rank
-                        font.family: "Lexend"
-                        font.pixelSize: 12
-                        color: "#B0B0B0"
-                    }
+                    text: username
+                    font.family: "Lexend"
+                    font.pixelSize: Math.round(14 * uiScale)
+                    font.bold: true
+                    color: "#FFFFFF"
+                    elide: Text.ElideRight
                 }
-                
-                // Notifications icon
+
+                // ✅ Bỏ icon chuông noti
+                // Logout icon (giữ)
                 Rectangle {
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 40
+                    Layout.preferredWidth: Math.round(40 * uiScale)
+                    Layout.preferredHeight: Math.round(40 * uiScale)
                     color: "transparent"
-                    
-                    Text {
+
+                    Image {
                         anchors.centerIn: parent
-                        text: "🔔"
-                        font.pixelSize: 20
+                        source: "qrc:/icons/log-out.svg"
+                        width: Math.round(24 * uiScale)
+                        height: Math.round(24 * uiScale)
+                        sourceSize: Qt.size(width, height)
                     }
-                    
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            // TODO: Navigate to notifications
-                            console.log("Notifications clicked")
-                        }
-                    }
-                }
-                
-                // Logout button
-                Rectangle {
-                    Layout.preferredWidth: 40
-                    Layout.preferredHeight: 40
-                    color: "transparent"
-                    
-                    Text {
-                        anchors.centerIn: parent
-                        text: "🚪"
-                        font.pixelSize: 20
-                    }
-                    
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: {
-                            // Call logout directly
                             if (networkClient.isLoggedIn()) {
                                 networkClient.sendLogout()
                             }
@@ -161,200 +149,98 @@ Item {
                 }
             }
         }
-        
-        // Spacing after top bar: 24px
+
+        // Spacing after top bar
         Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 24
+            Layout.preferredHeight: Math.round(24 * uiScale)
         }
-        
-        // Scrollable content area
+
+        // ===================== Content Area =====================
         Item {
             id: contentArea
             Layout.fillWidth: true
             Layout.fillHeight: true
-            
+
             ScrollView {
                 anchors.fill: parent
                 clip: true
-                
-                Column {
-                    width: parent.width
-                    spacing: 16
-                    
-                    // Card 1: Quick Mode (312x168)
-                    Rectangle {
-                        id: quickModeCard
+
+                // Wrap để giới hạn max width và canh giữa
+                Item {
+                    width: Math.min(parent.width, maxContentWidth)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    height: cardsColumn.implicitHeight
+
+                    Column {
+                        id: cardsColumn
                         width: parent.width
-                        height: 168
-                        radius: 16
-                        color: "#3D2B56"
-                        border.color: "#5D4586"
-                        border.width: 1
-                        
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 20
-                            spacing: 12
-                            
-                            Text {
-                                text: "⚡ Quick Mode"
-                                font.family: "Lexend"
-                                font.pixelSize: 20
-                                font.bold: true
-                                color: "#FFFFFF"
-                            }
-                            
-                            Text {
-                                width: parent.width
-                                text: "Chế độ nhanh - 15 câu hỏi"
-                                font.family: "Lexend"
-                                font.pixelSize: 14
-                                color: "#B0B0B0"
-                                wrapMode: Text.WordWrap
-                            }
-                            
-                            Item {
-                                width: parent.width
-                                height: 1
-                            }
-                            
-                            // Primary Button "Chơi ngay" (48px)
-                            Button {
-                                width: parent.width
-                                height: 48
-                                text: "Chơi ngay"
-                                font.family: "Lexend"
-                                font.pixelSize: 16
-                                font.bold: true
-                                
-                                background: Rectangle {
-                                    color: "#FFC107"
-                                    radius: 12
-                                }
-                                
-                                contentItem: Text {
-                                    text: parent.text
-                                    font: parent.font
-                                    color: "#000000"
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                                
-                                onClicked: {
-                                    if (stackView) {
-                                        stackView.push("QuickModeGame.qml", {
-                                            "stackView": stackView,
-                                            "username": username
-                                        })
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Card 2: 1vN Mode (312x168)
-                    Rectangle {
-                        id: oneVNCard
-                        width: parent.width
-                        height: 168
-                        radius: 16
-                        color: "#3D2B56"
-                        border.color: "#5D4586"
-                        border.width: 1
-                        
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 20
-                            spacing: 12
-                            
-                            Text {
-                                text: "⚔️ 1vN"
-                                font.family: "Lexend"
-                                font.pixelSize: 20
-                                font.bold: true
-                                color: "#FFFFFF"
-                            }
-                            
-                            Text {
-                                width: parent.width
-                                text: "Chế độ đối kháng"
-                                font.family: "Lexend"
-                                font.pixelSize: 14
-                                color: "#B0B0B0"
-                                wrapMode: Text.WordWrap
-                            }
-                            
-                            Item {
-                                width: parent.width
-                                height: 1
-                            }
-                            
-                            // Two buttons row
-                            Row {
-                                width: parent.width
-                                height: 48
-                                spacing: 12
-                                
-                                // Secondary Button "Tham gia"
-                                Button {
-                                    width: (parent.width - parent.spacing) / 2
-                                    height: 48
-                                    text: "Tham gia"
+                        spacing: gap
+
+                        // ---------- Card 1: Quick Mode ----------
+                        Rectangle {
+                            id: quickModeCard
+                            width: parent.width
+                            radius: cardRadius
+                            color: "#3D2B56"
+                            border.color: "#5D4586"
+                            border.width: 1
+
+                            // auto height theo content, có min để nhìn đẹp
+                            implicitHeight: Math.max( Math.round(168 * uiScale), quickCol.implicitHeight + cardPad * 2 )
+
+                            Column {
+                                id: quickCol
+                                anchors.fill: parent
+                                anchors.margins: cardPad
+                                spacing: Math.round(12 * uiScale)
+
+                                // ✅ Bỏ icon trước chữ
+                                Text {
+                                    text: "Quick Mode"
                                     font.family: "Lexend"
-                                    font.pixelSize: 16
+                                    font.pixelSize: titleSize
                                     font.bold: true
-                                    
-                                    background: Rectangle {
-                                        color: "#3D2B56"
-                                        border.color: "#5D4586"
-                                        border.width: 1
-                                        radius: 12
-                                    }
-                                    
-                                    contentItem: Text {
-                                        text: parent.text
-                                        font: parent.font
-                                        color: "#FFFFFF"
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                    
-                                    onClicked: {
-                                        if (stackView) {
-                                            stackView.push("OneVNRoomListScreen.qml", {
-                                                "stackView": stackView,
-                                                "username": username
-                                            })
-                                        }
-                                    }
+                                    color: "#FFFFFF"
+                                    elide: Text.ElideRight
                                 }
-                                
-                                // Primary Button "Tạo phòng"
-                                Button {
-                                    width: (parent.width - parent.spacing) / 2
-                                    height: 48
-                                    text: "Tạo phòng"
+
+                                Text {
+                                    width: parent.width
+                                    text: "Chế độ nhanh - 15 câu hỏi"
                                     font.family: "Lexend"
-                                    font.pixelSize: 16
+                                    font.pixelSize: descSize
+                                    color: "#B0B0B0"
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Item { width: parent.width; height: 1 }
+
+                                Button {
+                                    width: parent.width
+                                    height: btnH
+                                    text: "Chơi ngay"
+                                    font.family: "Lexend"
+                                    font.pixelSize: btnTextSize
                                     font.bold: true
-                                    
+
                                     background: Rectangle {
                                         color: "#FFC107"
-                                        radius: 12
+                                        radius: Math.round(12 * uiScale)
                                     }
-                                    
+
                                     contentItem: Text {
                                         text: parent.text
                                         font: parent.font
                                         color: "#000000"
                                         horizontalAlignment: Text.AlignHCenter
                                         verticalAlignment: Text.AlignVCenter
+                                        elide: Text.ElideRight
                                     }
-                                    
+
                                     onClicked: {
                                         if (stackView) {
-                                            stackView.push("OneVNMode.qml", {
+                                            stackView.push("QuickModeGame.qml", {
                                                 "stackView": stackView,
                                                 "username": username
                                             })
@@ -363,325 +249,163 @@ Item {
                                 }
                             }
                         }
-                    }
-                    
-                    // Quick actions row (72px)
-                    Rectangle {
-                        width: parent.width
-                        height: 72
-                        color: "transparent"
-                        
-                        Row {
-                            anchors.fill: parent
-                            spacing: 12
-                            
-                            // Friends tile
-                            Rectangle {
-                                width: (parent.width - parent.spacing * 2) / 3
-                                height: parent.height
-                                radius: 12
-                                color: "#3D2B56"
-                                border.color: "#5D4586"
-                                border.width: 1
-                                
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "👥"
-                                        font.pixelSize: 32
-                                    }
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Friends"
-                                        font.family: "Lexend"
-                                        font.pixelSize: 12
-                                        color: "#FFFFFF"
-                                    }
-                                }
-                                
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: {
-                                        if (stackView) {
-                                            stackView.push("FriendsList.qml", {
-                                                "stackView": stackView,
-                                                "username": username
-                                            })
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // BXH (Leaderboard) tile
-                            Rectangle {
-                                width: (parent.width - parent.spacing * 2) / 3
-                                height: parent.height
-                                radius: 12
-                                color: "#3D2B56"
-                                border.color: "#5D4586"
-                                border.width: 1
-                                
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "🏆"
-                                        font.pixelSize: 32
-                                    }
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "BXH"
-                                        font.family: "Lexend"
-                                        font.pixelSize: 12
-                                        color: "#FFFFFF"
-                                    }
-                                }
-                                
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: {
-                                        if (stackView) {
-                                            stackView.push("LeaderboardScreen.qml", {
-                                                "stackView": stackView,
-                                                "username": username
-                                            })
-                                        }
-                                    }
-                                }
-                            }
-                            
-                            // Chat tile
-                            Rectangle {
-                                width: (parent.width - parent.spacing * 2) / 3
-                                height: parent.height
-                                radius: 12
-                                color: "#3D2B56"
-                                border.color: "#5D4586"
-                                border.width: 1
-                                
-                                Column {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "💬"
-                                        font.pixelSize: 32
-                                    }
-                                    
-                                    Text {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: "Chat"
-                                        font.family: "Lexend"
-                                        font.pixelSize: 12
-                                        color: "#FFFFFF"
-                                    }
-                                }
-                                
-                                MouseArea {
-                                    anchors.fill: parent
-                                    onClicked: {
-                                        // TODO: Navigate to chat
-                                        console.log("Chat clicked")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    
-                    // Mini leaderboard (~96px) - Optional
-                    Rectangle {
-                        width: parent.width
-                        height: 96
-                        radius: 16
-                        color: "#3D2B56"
-                        border.color: "#5D4586"
-                        border.width: 1
-                        
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 16
-                            spacing: 8
-                            
-                            RowLayout {
-                                width: parent.width
-                                
+
+                        // ---------- Card 2: 1vN ----------
+                        Rectangle {
+                            id: oneVNCard
+                            width: parent.width
+                            radius: cardRadius
+                            color: "#3D2B56"
+                            border.color: "#5D4586"
+                            border.width: 1
+
+                            // auto height theo content
+                            implicitHeight: Math.max( Math.round(168 * uiScale), oneVNCol.implicitHeight + cardPad * 2 )
+
+                            // nếu card hẹp, đổi 2 nút sang dọc để không bị Th.../Ta...
+                            readonly property bool compactButtons: width < 360
+
+                            Column {
+                                id: oneVNCol
+                                anchors.fill: parent
+                                anchors.margins: cardPad
+                                spacing: Math.round(12 * uiScale)
+
+                                // ✅ Bỏ icon trước chữ
                                 Text {
-                                    text: "🏆 Top 3"
+                                    text: "1vN"
                                     font.family: "Lexend"
-                                    font.pixelSize: 16
+                                    font.pixelSize: titleSize
                                     font.bold: true
                                     color: "#FFFFFF"
+                                    elide: Text.ElideRight
                                 }
-                                
-                                Item {
-                                    Layout.fillWidth: true
-                                }
-                                
+
                                 Text {
-                                    text: "Xem tất cả →"
+                                    width: parent.width
+                                    text: "Chế độ đối kháng"
                                     font.family: "Lexend"
-                                    font.pixelSize: 12
-                                    color: "#FFC107"
-                                    
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: {
-                                            if (stackView) {
-                                                stackView.push("LeaderboardScreen.qml", {
-                                                    "stackView": stackView,
-                                                    "username": username
-                                                })
-                                            }
-                                        }
-                                    }
+                                    font.pixelSize: descSize
+                                    color: "#B0B0B0"
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                Item { width: parent.width; height: 1 }
+
+                                Loader {
+                                    width: parent.width
+                                    sourceComponent: oneVNCard.compactButtons ? oneVNButtonsColumn : oneVNButtonsRow
                                 }
                             }
-                            
-                            // Placeholder for top 3
-                            Row {
-                                width: parent.width
-                                spacing: 8
-                                
-                                Repeater {
-                                    model: 3
-                                    
-                                    Rectangle {
-                                        width: (parent.width - parent.spacing * 2) / 3
-                                        height: 48
-                                        radius: 8
-                                        color: "#2E1A47"
-                                        
-                                        Column {
-                                            anchors.centerIn: parent
-                                            spacing: 2
-                                            
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉"
-                                                font.pixelSize: 16
-                                            }
-                                            
-                                            Text {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                text: "User " + (index + 1)
-                                                font.family: "Lexend"
-                                                font.pixelSize: 10
-                                                color: "#B0B0B0"
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        }
+
+                        // Đệm dưới để không bị bottom nav che khi scroll
+                        Item {
+                            width: parent.width
+                            height: Math.round(8 * uiScale)
                         }
                     }
                 }
             }
         }
-        
-        // Bottom Navigation (64px, fixed)
+
+        // ===================== Bottom Navigation =====================
         Rectangle {
             id: bottomNav
             Layout.fillWidth: true
-            Layout.preferredHeight: 64
+            Layout.preferredHeight: bottomNavH
             color: "#3D2B56"
-            
+
             Row {
                 anchors.fill: parent
-                anchors.margins: 8
-                
+                anchors.margins: Math.round(8 * uiScale)
+
                 // Home tab (active)
                 Rectangle {
                     width: parent.width / 4
                     height: parent.height
                     color: "transparent"
-                    
+
                     Column {
                         anchors.centerIn: parent
-                        spacing: 4
-                        
-                        Text {
+                        spacing: Math.round(4 * uiScale)
+
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "🏠"
-                            font.pixelSize: 24
+                            source: "qrc:/icons/home.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
-                        
+
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "Home"
                             font.family: "Lexend"
-                            font.pixelSize: 11
-                            color: "#FFC107" // Active color
+                            font.pixelSize: Math.round(11 * uiScale)
+                            color: "#FFC107"
                         }
                     }
                 }
-                
+
                 // Friends tab
                 Rectangle {
                     width: parent.width / 4
                     height: parent.height
                     color: "transparent"
-                    
+
                     Column {
                         anchors.centerIn: parent
-                        spacing: 4
-                        
+                        spacing: Math.round(4 * uiScale)
+
                         Item {
-                            width: 24
-                            height: 24
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
                             anchors.horizontalCenter: parent.horizontalCenter
-                            
-                            Text {
+
+                            Image {
                                 anchors.centerIn: parent
-                                text: "👥"
-                                font.pixelSize: 24
+                                source: "qrc:/icons/users.svg"
+                                width: Math.round(24 * uiScale)
+                                height: Math.round(24 * uiScale)
+                                sourceSize: Qt.size(width, height)
                             }
-                            
-                            // Unread message badge
+
                             Rectangle {
                                 anchors.right: parent.right
                                 anchors.top: parent.top
-                                anchors.rightMargin: -4
-                                anchors.topMargin: -4
-                                width: 12
-                                height: 12
-                                radius: 6
+                                anchors.rightMargin: Math.round(-4 * uiScale)
+                                anchors.topMargin: Math.round(-4 * uiScale)
+                                width: Math.round(12 * uiScale)
+                                height: Math.round(12 * uiScale)
+                                radius: Math.round(6 * uiScale)
                                 color: "#FF5252"
                                 visible: hasUnreadMessages
-                                
+
                                 Text {
                                     anchors.centerIn: parent
                                     text: "!"
                                     font.family: "Lexend"
-                                    font.pixelSize: 8
+                                    font.pixelSize: Math.round(8 * uiScale)
                                     font.bold: true
                                     color: "#FFFFFF"
                                 }
                             }
                         }
-                        
+
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "Friends"
                             font.family: "Lexend"
-                            font.pixelSize: 11
+                            font.pixelSize: Math.round(11 * uiScale)
                             color: "#B0B0B0"
                         }
                     }
-                    
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
-                            // Reset unread badge when opening FriendsList
                             hasUnreadMessages = false
-                            
                             if (stackView) {
                                 stackView.push("FriendsList.qml", {
                                     "stackView": stackView,
@@ -691,32 +415,34 @@ Item {
                         }
                     }
                 }
-                
+
                 // Leaderboard tab
                 Rectangle {
                     width: parent.width / 4
                     height: parent.height
                     color: "transparent"
-                    
+
                     Column {
                         anchors.centerIn: parent
-                        spacing: 4
-                        
-                        Text {
+                        spacing: Math.round(4 * uiScale)
+
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "🏆"
-                            font.pixelSize: 24
+                            source: "qrc:/icons/award.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
-                        
+
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "BXH"
                             font.family: "Lexend"
-                            font.pixelSize: 11
+                            font.pixelSize: Math.round(11 * uiScale)
                             color: "#B0B0B0"
                         }
                     }
-                    
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
@@ -729,32 +455,34 @@ Item {
                         }
                     }
                 }
-                
+
                 // Profile tab
                 Rectangle {
                     width: parent.width / 4
                     height: parent.height
                     color: "transparent"
-                    
+
                     Column {
                         anchors.centerIn: parent
-                        spacing: 4
-                        
-                        Text {
+                        spacing: Math.round(4 * uiScale)
+
+                        Image {
                             anchors.horizontalCenter: parent.horizontalCenter
-                            text: "👤"
-                            font.pixelSize: 24
+                            source: "qrc:/icons/user.svg"
+                            width: Math.round(24 * uiScale)
+                            height: Math.round(24 * uiScale)
+                            sourceSize: Qt.size(width, height)
                         }
-                        
+
                         Text {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: "Profile"
                             font.family: "Lexend"
-                            font.pixelSize: 11
+                            font.pixelSize: Math.round(11 * uiScale)
                             color: "#B0B0B0"
                         }
                     }
-                    
+
                     MouseArea {
                         anchors.fill: parent
                         onClicked: {
@@ -771,74 +499,196 @@ Item {
             }
         }
     }
-    
-    // Connect to NetworkClient signals
-    // Invite Notification Dialog
-    InviteNotificationDialog {
-        id: inviteDialog
-    }
-    
-    Connections {
-        target: networkClient
-        
-        function onRoomInviteReceived(roomId, fromUserId, fromUsername) {
-            console.log("[INVITE] Received invite from", fromUsername, "room_id=" + roomId)
-            inviteDialog.roomId = roomId
-            inviteDialog.fromUserId = fromUserId
-            inviteDialog.inviterName = fromUsername
-            inviteDialog.open()
-        }
-        
-        function onOneVNRoomJoined(success, roomId, error) {
-            console.log("[HOME] onOneVNRoomJoined - success:" + success + " roomId:" + roomId)
-            // If successfully joined from invite accept, navigate to OneVNMode
-            if (success && roomId > 0) {
-                console.log("[HOME] Navigating to OneVNMode after invite accept")
-                var component = Qt.createComponent("OneVNMode.qml")
-                if (component.status === Component.Ready) {
-                    stackView.push(component, {
-                        "stackView": stackView,
-                        "username": username,
-                        "isJoiningRoom": true,
-                        "roomId": roomId
-                    })
-                } else {
-                    console.error("[HOME] Failed to load OneVNMode:", component.errorString())
+
+    // ===================== Components for 1vN buttons =====================
+    Component {
+        id: oneVNButtonsRow
+        Row {
+            width: parent.width
+            height: btnH
+            spacing: Math.round(12 * uiScale)
+
+            Button {
+                width: (parent.width - parent.spacing) / 2
+                height: btnH
+                text: "Tham gia"
+                font.family: "Lexend"
+                font.pixelSize: btnTextSize
+                font.bold: true
+
+                background: Rectangle {
+                    color: "#3D2B56"
+                    border.color: "#5D4586"
+                    border.width: 1
+                    radius: Math.round(12 * uiScale)
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    font: parent.font
+                    color: "#FFFFFF"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                onClicked: {
+                    if (stackView) {
+                        stackView.push("OneVNRoomListScreen.qml", {
+                            "stackView": stackView,
+                            "username": username
+                        })
+                    }
+                }
+            }
+
+            Button {
+                width: (parent.width - parent.spacing) / 2
+                height: btnH
+                text: "Tạo phòng"
+                font.family: "Lexend"
+                font.pixelSize: btnTextSize
+                font.bold: true
+
+                background: Rectangle {
+                    color: "#FFC107"
+                    radius: Math.round(12 * uiScale)
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    font: parent.font
+                    color: "#000000"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                onClicked: {
+                    if (stackView) {
+                        stackView.push("OneVNMode.qml", {
+                            "stackView": stackView,
+                            "username": username
+                        })
+                    }
                 }
             }
         }
-        
+    }
+
+    Component {
+        id: oneVNButtonsColumn
+        Column {
+            width: parent.width
+            spacing: Math.round(10 * uiScale)
+
+            Button {
+                width: parent.width
+                height: btnH
+                text: "Tham gia"
+                font.family: "Lexend"
+                font.pixelSize: btnTextSize
+                font.bold: true
+
+                background: Rectangle {
+                    color: "#3D2B56"
+                    border.color: "#5D4586"
+                    border.width: 1
+                    radius: Math.round(12 * uiScale)
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    font: parent.font
+                    color: "#FFFFFF"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                onClicked: {
+                    if (stackView) {
+                        stackView.push("OneVNRoomListScreen.qml", {
+                            "stackView": stackView,
+                            "username": username
+                        })
+                    }
+                }
+            }
+
+            Button {
+                width: parent.width
+                height: btnH
+                text: "Tạo phòng"
+                font.family: "Lexend"
+                font.pixelSize: btnTextSize
+                font.bold: true
+
+                background: Rectangle {
+                    color: "#FFC107"
+                    radius: Math.round(12 * uiScale)
+                }
+
+                contentItem: Text {
+                    text: parent.text
+                    font: parent.font
+                    color: "#000000"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+
+                onClicked: {
+                    if (stackView) {
+                        stackView.push("OneVNMode.qml", {
+                            "stackView": stackView,
+                            "username": username
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    // ===================== Invite Notification Dialog =====================
+    InviteNotificationDialog {
+        id: inviteNotificationDialog
+        anchors.centerIn: parent
+    }
+
+    // ===================== Network hooks =====================
+    Connections {
+        target: networkClient
+
         function onProfileReceived(profile) {
-            // Update avatar when profile is received
             if (profile.avatar_img && profile.avatar_img !== "") {
                 avatarPath = profile.avatar_img
             }
         }
-        
+
         function onDmReceived(fromUserId, fromUsername, message, timestamp) {
-            console.log("=== HomeScreen: dmReceived ===")
-            console.log("From:", fromUserId, "Message:", message)
-            
-            // Set unread messages flag for footer badge
             hasUnreadMessages = true
         }
-        
+
+        function onRoomInviteReceived(roomId, fromUserId, fromUsername) {
+            console.log("[HomeScreen] Received room invite from", fromUsername, "room:", roomId)
+            inviteNotificationDialog.roomId = roomId
+            inviteNotificationDialog.fromUserId = fromUserId
+            inviteNotificationDialog.inviterName = fromUsername
+            inviteNotificationDialog.stackView = stackView
+            inviteNotificationDialog.username = username
+            inviteNotificationDialog.open()
+        }
+
         function onLogoutResponse(success) {
-            console.log("Logout response:", success)
-            if (success) {
-                // Navigate back to Signin screen
-                // Socket will be disconnected by NetworkClient after logout
-                if (stackView) {
-                    // Clear stack and go to Signin
-                    stackView.clear()
-                    stackView.push("Signin.qml", {"stackView": stackView})
-                }
+            if (success && stackView) {
+                stackView.clear()
+                stackView.push("Signin.qml", {"stackView": stackView})
             }
         }
     }
-    
+
     Component.onCompleted: {
-        // Request profile to get avatar
         if (userId > 0) {
             networkClient.sendGetProfile()
         }

@@ -33,6 +33,7 @@ set(HEADERS
 # QML Resource file
 set(RESOURCE_FILES
     qml.qrc
+    resources/resources.qrc
 )
 
 # Use add_executable instead of qt6_add_executable to avoid conflicts

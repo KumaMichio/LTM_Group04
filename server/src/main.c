@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include "db.h"
+#include "dao/dao_sessions.h"
 #include "service/auth_service.h"
 #include "service/quickmode_service.h"
 #include "service/server.h"
@@ -22,7 +23,14 @@ int main() {
         printf("DB connection failed.\n");
         return 1;
     }
-
+    // [FORBID-LOGIN] Cleanup old sessions from previous server instance
+    printf("[INIT] Cleaning up stale sessions from previous server instance...\n");
+    int cleaned = dao_sessions_cleanup_all_on_restart();
+    if (cleaned >= 0) {
+        printf("[INIT] Successfully cleaned up %d old session(s)\n", cleaned);
+    } else {
+        printf("[WARN] Failed to cleanup old sessions, continuing anyway...\n");
+    }
     printf("=== SERVER STARTED ===\n");
 
     // If running as server: start runtime loop

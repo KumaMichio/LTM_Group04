@@ -40,6 +40,18 @@ AuthResult auth_login(const char *username, const char *password,
         return AUTH_ERR_CRED;
     }
 
+    // [FORBID-LOGIN] Check if user already has active session
+    int active_count = dao_sessions_count_active_by_user(user_id);
+    if (active_count < 0) {
+        // DB error
+        return AUTH_ERR_DB;
+    }
+    if (active_count > 0) {
+        // User already logged in from another device
+        printf("[AUTH] Login rejected: User %lld already has active session(s)\n", (long long)user_id);
+        return AUTH_ERR_USER_ALREADY_LOGGED_IN;
+    }
+
     if (dao_sessions_create(user_id, SESSION_TTL_SECONDS, out_session) != 0) {
         return AUTH_ERR_DB;
     }
@@ -76,30 +88,6 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
                 UserSession us;
                 AuthResult r = auth_login(username, password, &us);
                 if (r == AUTH_OK) {
-                    // SINGLE-SESSION: Invalidate old sessions for this user
-                    SessionManager *mgr = session_manager_get_global();
-                    if (mgr) {
-                        // Find old sessions (excluding current session)
-                        ClientSession *old_sess = session_manager_get_by_user_id(us.user_id);
-                        if (old_sess && old_sess != sess) {
-                            printf("[AUTH] Invalidating old session for user_id=%lld (fd=%d)\n",
-                                   (long long)us.user_id, old_sess->socket_fd);
-                            fflush(stdout);
-                            
-                            // Cleanup game sessions (QuickMode)
-                            quickmode_cleanup_user(us.user_id);
-                            
-                            // Notify old client about logout (try to send, but don't fail if socket is closed)
-                            protocol_send_response(old_sess, CMD_RES_LOGOUT,
-                                "{\"reason\":\"NEW_LOGIN_DETECTED\"}", 35);
-                            
-                            // Close old session's socket
-                            // This will trigger disconnect in server loop, which will cleanup the session
-                            shutdown(old_sess->socket_fd, SHUT_RDWR);
-                            close(old_sess->socket_fd);
-                        }
-                    }
-                    
                     // attach to session
                     sess->user_id = us.user_id;
                     strncpy(sess->access_token, us.access_token, sizeof(sess->access_token)-1);
@@ -122,7 +110,18 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
                     fflush(stdout);
                     friends_notify_status_change(us.user_id, "online", 0);
                 } else {
-                    protocol_send_error(sess, CMD_RES_LOGIN, "LOGIN_FAILED");
+                    // [FORBID-LOGIN] Handle login errors
+                    if (r == AUTH_ERR_USER_ALREADY_LOGGED_IN) {
+                        protocol_send_error(sess, CMD_RES_LOGIN, 
+                            "USER_ALREADY_LOGGED_IN");
+                        printf("[AUTH] Login rejected: User already logged in from another device\n");
+                    } else if (r == AUTH_ERR_CRED) {
+                        protocol_send_error(sess, CMD_RES_LOGIN, 
+                            "INVALID_CREDENTIALS");
+                        printf("[AUTH] Login failed: Invalid credentials\n");
+                    } else {
+                        protocol_send_error(sess, CMD_RES_LOGIN, "LOGIN_FAILED");
+                    }
                 }
             }
             free(username); free(password);
@@ -132,8 +131,15 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
             if (sess && sess->user_id > 0) {
                 int64_t user_id = sess->user_id;
                 
+                // [FORBID-LOGIN] Deactivate session in database
+                printf("[AUTH] Deactivating session for user %lld\n", (long long)user_id);
+                int deactivate_result = dao_sessions_deactivate_all_by_user(user_id);
+                if (deactivate_result != 0) {
+                    printf("[WARN] Failed to deactivate session in database for user %lld\n", (long long)user_id);
+                }
+                
                 // Update status to offline
-                session_manager_update_status(user_id, USER_STATUS_ONLINE, 0);  // Will be removed from session manager
+                session_manager_update_status(user_id, USER_STATUS_OFFLINE, 0);
                 
                 // Cleanup game sessions (QuickMode)
                 quickmode_cleanup_user(user_id);
@@ -149,7 +155,7 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
                 // Send logout success response
                 protocol_send_simple_ok(sess, CMD_RES_LOGOUT);
                 
-                printf("[AUTH] User %lld logged out\n", (long long)user_id);
+                printf("[AUTH] User %lld logged out successfully\n", (long long)user_id);
                 fflush(stdout);
             } else {
                 protocol_send_error(sess, CMD_RES_LOGOUT, "NOT_LOGGED_IN");

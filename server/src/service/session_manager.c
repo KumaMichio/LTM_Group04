@@ -286,6 +286,8 @@ const char *session_get_status_string(int64_t user_id) {
 			return "in_waiting_room";
 		case USER_STATUS_IN_GAME:
 			return "in_game";
+		case USER_STATUS_OFFLINE:
+			return "offline";
 		default:
 			return "unknown";
 	}
@@ -322,8 +324,8 @@ void session_manager_update_status(int64_t user_id, int status, int64_t room_id)
 	sess->status = (UserStatus)status;
 	if (room_id > 0) {
 		sess->room_id = room_id;
-	} else if (status == USER_STATUS_ONLINE) {
-		sess->room_id = 0;  // Clear room when back to online
+	} else if (status == USER_STATUS_ONLINE || status == USER_STATUS_OFFLINE) {
+		sess->room_id = 0;  // Clear room when back to online/offline
 	}
 	
 	printf("[SESSION_MGR] Updated user %lld status to %d, room_id=%lld\n",
