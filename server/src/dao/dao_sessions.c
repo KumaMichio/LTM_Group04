@@ -191,3 +191,116 @@ int dao_sessions_touch(const char *token, int ttl_seconds) {
     PQclear(res);
     return affected > 0 ? 0 : -1;
 }
+
+// [FORBID-LOGIN] Check if user has active session(s)
+// Returns: 0 = no active session, 1 = has active session, -1 = db error
+int dao_sessions_count_active_by_user(int64_t user_id) {
+    if (!db_is_ok()) return -1;
+
+    const char *sql =
+        "SELECT COUNT(*) FROM user_sessions "
+        "WHERE user_id = $1 AND expires_at > NOW();";
+
+    char user_id_str[32];
+    snprintf(user_id_str, sizeof(user_id_str), "%lld", (long long)user_id);
+
+    const char *params[1] = { user_id_str };
+    int paramLengths[1]   = { (int)strlen(user_id_str) };
+    int paramFormats[1]   = { 0 };
+
+    PGresult *res = PQexecParams(db_conn,
+                                 sql,
+                                 1,
+                                 NULL,
+                                 params,
+                                 paramLengths,
+                                 paramFormats,
+                                 0);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        db_log_error(res, "dao_sessions_count_active_by_user failed");
+        PQclear(res);
+        return -1;
+    }
+
+    if (PQntuples(res) != 1) {
+        PQclear(res);
+        return -1;
+    }
+
+    int count = atoi(PQgetvalue(res, 0, 0));
+    PQclear(res);
+
+    printf("[DAO] User %lld has %d active session(s)\n", (long long)user_id, count);
+    return (count > 0) ? 1 : 0;
+}
+
+// [FORBID-LOGIN] Deactivate all active sessions for a user
+// Used when user logs in from another device
+// Returns: 0 = success, -1 = db error
+int dao_sessions_deactivate_all_by_user(int64_t user_id) {
+    if (!db_is_ok()) return -1;
+
+    // This should not happen with proper client logic, but added for safety
+    // In FORBID-LOGIN, we reject login if user has active session
+    // This function is only for emergency cleanup
+
+    const char *sql =
+        "UPDATE user_sessions "
+        "SET expires_at = NOW() "
+        "WHERE user_id = $1 AND expires_at > NOW();";
+
+    char user_id_str[32];
+    snprintf(user_id_str, sizeof(user_id_str), "%lld", (long long)user_id);
+
+    const char *params[1] = { user_id_str };
+    int paramLengths[1]   = { (int)strlen(user_id_str) };
+    int paramFormats[1]   = { 0 };
+
+    PGresult *res = PQexecParams(db_conn,
+                                 sql,
+                                 1,
+                                 NULL,
+                                 params,
+                                 paramLengths,
+                                 paramFormats,
+                                 0);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        db_log_error(res, "dao_sessions_deactivate_all_by_user failed");
+        PQclear(res);
+        return -1;
+    }
+
+    int affected = atoi(PQcmdTuples(res));
+    PQclear(res);
+
+    printf("[DAO] Deactivated %d session(s) for user %lld\n", affected, (long long)user_id);
+    return 0;
+}
+
+// [FORBID-LOGIN] Cleanup all active sessions when server restarts
+// This prevents the issue where old sessions block new logins after server restart
+// Returns: number of sessions cleaned up, -1 = db error
+int dao_sessions_cleanup_all_on_restart() {
+    if (!db_is_ok()) return -1;
+
+    const char *sql =
+        "UPDATE user_sessions "
+        "SET expires_at = NOW() "
+        "WHERE expires_at > NOW();";
+
+    PGresult *res = PQexec(db_conn, sql);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        db_log_error(res, "dao_sessions_cleanup_all_on_restart failed");
+        PQclear(res);
+        return -1;
+    }
+
+    int affected = atoi(PQcmdTuples(res));
+    PQclear(res);
+
+    printf("[INIT] Cleaned up %d stale session(s) from previous server instance\n", affected);
+    return affected;
+}

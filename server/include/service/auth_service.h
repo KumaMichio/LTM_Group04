@@ -10,7 +10,8 @@ typedef enum {
     AUTH_OK = 0,
     AUTH_ERR_DB   = -1,
     AUTH_ERR_EXIST= -2,
-    AUTH_ERR_CRED = -3
+    AUTH_ERR_CRED = -3,
+    AUTH_ERR_USER_ALREADY_LOGGED_IN = -4  // [FORBID-LOGIN]
 } AuthResult;
 
 AuthResult auth_signup(const char *username, const char *password);

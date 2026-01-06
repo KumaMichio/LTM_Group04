@@ -182,6 +182,17 @@ int start_server(const char *bind_addr, const char *portstr) {
 					printf("Client disconnected (fd=%d)\n", fd);
 					// Notify friends that user is offline (before removing session)
 					if (sess && sess->user_id > 0) {
+						// [FORBID-LOGIN] Deactivate database session on disconnect
+						extern int dao_sessions_deactivate_all_by_user(int64_t user_id);
+						int deactivated = dao_sessions_deactivate_all_by_user(sess->user_id);
+						if (deactivated >= 0) {
+							printf("[AUTH] Client disconnect: Deactivated %d session(s) for user_id=%ld\n", 
+							       deactivated, sess->user_id);
+						} else {
+							printf("[WARN] Failed to deactivate sessions on disconnect for user_id=%ld\n", 
+							       sess->user_id);
+						}
+						
 						// Import friends_service to notify friends
 						extern void friends_notify_status_change(int64_t user_id, const char *status, int64_t room_id);
 						friends_notify_status_change(sess->user_id, "offline", 0);
