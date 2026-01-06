@@ -1,0 +1,640 @@
+# LUẬT VÀ CƠ CHẾ GAME - AI LÀ TRIỆU PHÚ
+
+## Mục Lục
+1. [Tổng Quan Hệ Thống](#1-tổng-quan-hệ-thống)
+2. [Chế Độ Solo (QuickMode)](#2-chế-độ-solo-quickmode)
+3. [Chế Độ Đối Kháng (1vN Mode)](#3-chế-độ-đối-kháng-1vn-mode)
+4. [Hệ Thống Phòng Chơi](#4-hệ-thống-phòng-chơi)
+5. [Hệ Thống Câu Hỏi](#5-hệ-thống-câu-hỏi)
+6. [Hệ Thống Điểm Số](#6-hệ-thống-điểm-số)
+7. [Hệ Thống Bạn Bè & Mời Chơi](#7-hệ-thống-bạn-bè--mời-chơi)
+8. [Thống Kê & Xếp Hạng](#8-thống-kê--xếp-hạng)
+9. [Hệ Thống Xác Thực](#9-hệ-thống-xác-thực)
+
+---
+
+## 1. Tổng Quan Hệ Thống
+
+### 1.1 Giới Thiệu
+
+**Ai Là Triệu Phú** là game trắc nghiệm kiến thức theo phong cách show truyền hình "Who Wants to Be a Millionaire". Hệ thống hỗ trợ:
+
+- **Chế độ Solo (QuickMode):** Chơi một mình, trả lời 15 câu hỏi
+- **Chế độ Đối Kháng (1vN):** Nhiều người chơi cạnh tranh trong cùng phòng
+
+### 1.2 Luồng Hoạt Động Chính
+
+```
+┌─────────────────┐
+│  Đăng ký/Đăng   │
+│      nhập      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│     LOBBY       │ ◄────────────────┐
+│  (Sảnh chính)   │                  │
+└────────┬────────┘                  │
+         │                           │
+    ┌────┴────┐                      │
+    ▼         ▼                      │
+┌────────┐  ┌─────────┐              │
+│QuickMode│  │Tạo/Tham│              │
+│  Solo   │  │gia phòng│              │
+└────┬───┘  └────┬────┘              │
+     │           │                   │
+     ▼           ▼                   │
+┌────────┐  ┌─────────┐              │
+│15 câu  │  │Phòng chờ│              │
+│  hỏi   │  │ WAITING │              │
+└────┬───┘  └────┬────┘              │
+     │           │ Host Start        │
+     │           ▼                   │
+     │      ┌─────────┐              │
+     │      │1vN Game │              │
+     │      │IN_PROGRESS│             │
+     │      └────┬────┘              │
+     │           │                   │
+     ▼           ▼                   │
+┌─────────────────┐                  │
+│   KẾT QUẢ       ├──────────────────┘
+│ (Win/Lose/Score)│
+└─────────────────┘
+```
+
+---
+
+## 2. Chế Độ Solo (QuickMode)
+
+### 2.1 Mục Tiêu
+
+Trả lời đúng **15 câu hỏi liên tiếp** để chiến thắng. Trả lời sai bất kỳ câu nào sẽ kết thúc game.
+
+### 2.2 Cấu Trúc Câu Hỏi
+
+| Vòng | Độ Khó | Số Lượng |
+|------|--------|----------|
+| 1-5 | EASY | 5 câu |
+| 6-10 | MEDIUM | 5 câu |
+| 11-15 | HARD | 5 câu |
+
+### 2.3 Quy Tắc Chơi
+
+```
+LUẬT CHÍNH:
+┌─────────────────────────────────────────────────┐
+│ ✓ Mỗi câu hỏi có 4 đáp án (A, B, C, D)         │
+│ ✓ Chỉ có 1 đáp án đúng                          │
+│ ✓ Thời gian trả lời: 15 giây/câu               │
+│ ✓ Không có thời gian tổng cho cả game          │
+│                                                  │
+│ ✗ Trả lời SAI → THUA ngay lập tức              │
+│ ✗ Không thể quay lại câu trước                  │
+│ ✗ Không thể bỏ qua câu                          │
+└─────────────────────────────────────────────────┘
+```
+
+### 2.4 Trợ Giúp 50:50 (Lifeline)
+
+**Số lần sử dụng:** Tối đa **2 lần** trong toàn bộ game
+
+**Cơ chế hoạt động:**
+1. Loại bỏ ngẫu nhiên **2 đáp án sai**
+2. Còn lại **2 đáp án** (1 đúng + 1 sai)
+3. Không thể sử dụng sau khi đã trả lời câu
+
+**Thuật toán chọn đáp án loại bỏ:**
+```
+1. Xác định đáp án đúng (correct_op)
+2. Lấy 3 đáp án sai còn lại
+3. Chọn ngẫu nhiên 1 trong 3 để GIỮ LẠI
+4. Loại bỏ 2 đáp án sai còn lại
+5. Trả về: [đáp_án_đúng, đáp_án_sai_được_giữ]
+```
+
+### 2.5 Kết Thúc Game
+
+| Điều Kiện | Kết Quả | Trạng Thái |
+|-----------|---------|------------|
+| Trả lời đúng 15/15 câu | **THẮNG** | game_status = 1 |
+| Trả lời sai bất kỳ câu | **THUA** | game_status = 2 |
+
+### 2.6 Session QuickMode
+
+```c
+// Cấu trúc lưu trữ phiên chơi
+QuickModeSession {
+    user_id          // ID người chơi
+    session_id       // ID phiên (unique)
+    current_round    // Vòng hiện tại (1-15)
+    score            // Điểm (số câu đúng)
+    questions[15]    // 15 câu hỏi đã load
+    answers[15]      // Đáp án đã chọn
+    correct[15]      // Trạng thái đúng/sai
+    lifeline_5050_used    // Số lần dùng 50:50
+    lifeline_5050_rounds  // Các vòng đã dùng
+    game_status      // 0=playing, 1=won, 2=lost
+}
+```
+
+---
+
+## 3. Chế Độ Đối Kháng (1vN Mode)
+
+### 3.1 Mục Tiêu
+
+Thi đấu với nhiều người chơi khác, **giành điểm cao nhất** sau khi hoàn thành tất cả câu hỏi.
+
+### 3.2 Điều Kiện Bắt Đầu
+
+- **Số người chơi tối thiểu:** 2 người
+- **Số người chơi tối đa:** 32 người (giới hạn kỹ thuật)
+- **Ai có thể bắt đầu:** Chỉ **Host** (người tạo phòng)
+
+### 3.3 Cấu Hình Câu Hỏi
+
+Host có thể tùy chỉnh số lượng câu hỏi mỗi độ khó:
+
+| Thiết Lập | Mặc Định | Phạm Vi |
+|-----------|----------|---------|
+| easy_count | 5 | 0-∞ |
+| medium_count | 5 | 0-∞ |
+| hard_count | 5 | 0-∞ |
+| **Tổng** | **15** | ≥1 |
+
+### 3.4 Quy Tắc Chơi
+
+```
+LUẬT CHÍNH:
+┌─────────────────────────────────────────────────┐
+│ ✓ Tất cả người chơi nhận CÙNG câu hỏi          │
+│ ✓ Thời gian trả lời: 15 giây/câu               │
+│ ✓ Điểm tính dựa trên: độ khó + thời gian       │
+│ ✓ Trả lời sai → 0 điểm (KHÔNG bị loại)         │
+│ ✓ Không trả lời → 0 điểm                        │
+│                                                  │
+│ ★ Người có điểm CAO NHẤT sau cùng → THẮNG      │
+│ ★ Hòa điểm → Cùng thắng                         │
+└─────────────────────────────────────────────────┘
+```
+
+### 3.5 Luồng Game
+
+```
+Vòng N:
+┌──────────────────────────────────────────────────────────┐
+│ 1. Server broadcast câu hỏi đến TẤT CẢ player            │
+│    CMD: NOTIFY_QUESTION_1VN                              │
+│                                                          │
+│ 2. Timer 15 giây bắt đầu đếm ngược                      │
+│                                                          │
+│ 3. Player submit đáp án                                  │
+│    - Server tính điểm dựa trên thời gian còn lại        │
+│    - Server gửi kết quả riêng cho player đó             │
+│                                                          │
+│ 4. Khi TẤT CẢ đã trả lời HOẶC hết 15 giây:              │
+│    - Server broadcast leaderboard update                 │
+│    - Chờ 3 giây (để player xem kết quả)                 │
+│                                                          │
+│ 5. Chuyển sang vòng N+1 (nếu còn câu hỏi)               │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 3.6 Xử Lý Timeout
+
+Khi player **KHÔNG trả lời** trong 15 giây:
+
+1. Server tự động đánh dấu timeout
+2. Điểm vòng đó = **0**
+3. Reset **consecutive_correct** (combo) = 0
+4. Player nhận notification với `timeout: true`
+5. Vẫn được tiếp tục chơi các vòng sau
+
+### 3.7 Xử Lý Rời Game Giữa Chừng
+
+| Hành Động | Kết Quả |
+|-----------|---------|
+| Player tự rời | Đánh dấu **eliminated** |
+| Player disconnect | Đánh dấu **eliminated** |
+| Host rời (trong game) | Đánh dấu eliminated, game tiếp tục |
+
+**Người bị eliminated:**
+- Không nhận câu hỏi tiếp theo
+- Điểm bị đóng băng
+- Hiển thị trên leaderboard với status `eliminated: true`
+- **KHÔNG THỂ** rejoin game đó
+
+### 3.8 Kết Thúc Game
+
+**Điều kiện:** Đã trả lời hết tất cả câu hỏi (easy + medium + hard)
+
+**Xác định người thắng:**
+```
+1. Sắp xếp player theo điểm (giảm dần)
+2. Player có điểm cao nhất → winner_id
+3. Nếu hòa điểm → Có thể có nhiều người thắng
+```
+
+**Thông báo kết thúc:**
+- Broadcast `CMD_NOTIFY_GAME_OVER_1VN`
+- Payload: `{winner_id, leaderboard[]}`
+
+---
+
+## 4. Hệ Thống Phòng Chơi
+
+### 4.1 Trạng Thái Phòng
+
+```
+┌─────────────────────────────────────────────────┐
+│ ROOM_STATUS_WAITING (0)                         │
+│ - Phòng vừa tạo, đang chờ người chơi           │
+│ - Host có thể mời bạn bè                       │
+│ - Người khác có thể join                        │
+└────────────────────┬────────────────────────────┘
+                     │ Host nhấn Start (≥2 người)
+                     ▼
+┌─────────────────────────────────────────────────┐
+│ ROOM_STATUS_STARTING (1)                        │
+│ - Đang khởi tạo game                           │
+│ - Không ai có thể join thêm                    │
+└────────────────────┬────────────────────────────┘
+                     │ Game bắt đầu
+                     ▼
+┌─────────────────────────────────────────────────┐
+│ ROOM_STATUS_IN_PROGRESS (2)                     │
+│ - Game đang diễn ra                            │
+│ - Không thể join                               │
+│ - Player có thể rời (bị eliminate)             │
+└────────────────────┬────────────────────────────┘
+                     │ Hết câu hỏi
+                     ▼
+┌─────────────────────────────────────────────────┐
+│ ROOM_STATUS_FINISHED (3)                        │
+│ - Game kết thúc                                │
+│ - Hiển thị kết quả                             │
+│ - Player tự động về lobby                      │
+└─────────────────────────────────────────────────┘
+```
+
+### 4.2 Quyền Hạn trong Phòng
+
+| Quyền | Host | Member |
+|-------|------|--------|
+| Tạo phòng | ✅ | ❌ |
+| Mời bạn bè | ✅ | ❌ |
+| Cấu hình câu hỏi | ✅ | ❌ |
+| Bắt đầu game | ✅ | ❌ |
+| Rời phòng | ✅ (xóa phòng) | ✅ |
+| Xem danh sách thành viên | ✅ | ✅ |
+
+### 4.3 Xử Lý Host Rời Phòng
+
+**Trước khi game bắt đầu (WAITING):**
+```
+→ Phòng bị XÓA hoàn toàn
+→ Tất cả member nhận CMD_NOTIFY_ROOM_CLOSED
+→ Reason: "owner_left"
+```
+
+**Trong khi game đang chạy (IN_PROGRESS):**
+```
+→ Host bị eliminate (như player thường)
+→ Game TIẾP TỤC với các player còn lại
+→ Không có host mới được chỉ định
+```
+
+---
+
+## 5. Hệ Thống Câu Hỏi
+
+### 5.1 Cấu Trúc Câu Hỏi
+
+```c
+Question {
+    question_id    // ID unique trong database
+    content        // Nội dung câu hỏi
+    op_a           // Đáp án A
+    op_b           // Đáp án B
+    op_c           // Đáp án C
+    op_d           // Đáp án D
+    correct_op     // Đáp án đúng ('A', 'B', 'C', 'D')
+    difficulty     // Độ khó ('EASY', 'MEDIUM', 'HARD')
+}
+```
+
+### 5.2 Thuật Toán Chọn Câu Hỏi
+
+**Nguyên tắc:**
+1. Chọn **ngẫu nhiên** từ database theo độ khó
+2. **Không trùng lặp** trong cùng một game
+3. Retry tối đa **100 lần** nếu bị trùng
+
+**Quy trình (1vN Mode):**
+```
+For each round:
+  1. Xác định difficulty cần chọn (theo thứ tự EASY → MEDIUM → HARD)
+  2. dao_question_get_random(difficulty)
+  3. Kiểm tra question_id có trong used_question_ids không
+  4. Nếu trùng → retry (tối đa 100 lần)
+  5. Nếu không trùng → thêm vào used_question_ids
+```
+
+### 5.3 Validation Câu Hỏi
+
+Trước khi gửi cho player, server kiểm tra:
+- `question_id > 0`
+- `content` không rỗng
+- `op_a, op_b, op_c, op_d` không rỗng
+- `correct_op` phải là 'A', 'B', 'C', hoặc 'D'
+
+Nếu fail → retry với câu hỏi khác
+
+---
+
+## 6. Hệ Thống Điểm Số
+
+### 6.1 Công Thức Tính Điểm (1vN Mode)
+
+```
+Điểm = Điểm_cơ_bản × (Thời_gian_còn_lại / 15) + Bonus_combo
+```
+
+### 6.2 Điểm Cơ Bản Theo Độ Khó
+
+| Độ Khó | Điểm Cơ Bản |
+|--------|-------------|
+| EASY | 1000 điểm |
+| MEDIUM | 1500 điểm |
+| HARD | 2000 điểm |
+
+### 6.3 Hệ Số Thời Gian
+
+```
+time_percent = (time_remaining / 15) × 100%
+
+Ví dụ:
+- Trả lời sau 3 giây (còn 12s): time_percent = 80%
+- Trả lời sau 10 giây (còn 5s): time_percent = 33%
+- Trả lời đúng deadline (còn 0s): time_percent = 0%
+```
+
+### 6.4 Bonus Combo (Liên Tiếp Đúng)
+
+| Số Câu Đúng Liên Tiếp | Bonus |
+|----------------------|-------|
+| 3 câu | +100 điểm |
+| 4 câu | +200 điểm |
+| ≥5 câu | +500 điểm |
+
+**Lưu ý:** Combo bị **reset về 0** khi:
+- Trả lời sai
+- Không trả lời (timeout)
+
+### 6.5 Ví Dụ Tính Điểm
+
+**Tình huống:** Câu MEDIUM, trả lời đúng sau 5 giây, đang combo 4
+
+```
+time_remaining = 15 - 5 = 10 giây
+time_percent = 10/15 × 100 = 66.7%
+
+Điểm = 1500 × 0.667 + 200 (bonus combo 4)
+     = 1000 + 200
+     = 1200 điểm
+```
+
+### 6.6 Điểm Trong QuickMode
+
+QuickMode **KHÔNG có hệ thống điểm phức tạp**:
+- `score` = Số câu trả lời đúng (0-15)
+- Dùng để thống kê, không so sánh realtime
+
+---
+
+## 7. Hệ Thống Bạn Bè & Mời Chơi
+
+### 7.1 Trạng Thái Bạn Bè
+
+```c
+typedef enum {
+    USER_STATUS_ONLINE = 0,          // Trong lobby
+    USER_STATUS_IN_WAITING_ROOM = 1, // Trong phòng chờ
+    USER_STATUS_IN_GAME = 2,         // Đang chơi game
+    USER_STATUS_OFFLINE = 3          // ✅ MỚI: Đã đăng xuất
+} UserStatus;
+```
+
+### 7.2 Điều Kiện Mời Chơi
+
+| Trạng Thái Bạn | Có Thể Mời? | Lý Do |
+|----------------|-------------|-------|
+| ONLINE | ✅ Có | Rảnh, có thể join |
+| IN_WAITING_ROOM (phòng khác) | ✅ Có | Có thể rời phòng để join |
+| IN_WAITING_ROOM (cùng phòng) | ❌ Không | Đã ở trong phòng rồi |
+| IN_GAME | ❌ Không | Đang chơi, không thể làm phiền |
+| OFFLINE | ❌ Không | Không online |
+
+### 7.3 Luồng Mời & Chấp Nhận
+
+```
+Host                     Server                    Friend
+  │                         │                         │
+  ├── REQ_INVITE_FRIEND ───►│                         │
+  │   {room_id, friend_id}  │                         │
+  │                         │◄── Check can_invite ────│
+  │                         │                         │
+  │◄── RES_INVITE_FRIEND ───│                         │
+  │   {status: sent}        │                         │
+  │                         │── NOTIFY_ROOM_INVITE ──►│
+  │                         │   {room_id, host_name}  │
+  │                         │                         │
+  │                         │◄── REQ_RESPOND_INVITE ──│
+  │                         │    {accept: true}       │
+  │                         │                         │
+  │◄── NOTIFY_ROOM_UPDATE ──│── RES_RESPOND_INVITE ──►│
+  │   {new member joined}   │   {room joined}         │
+```
+
+### 7.4 Thông Báo Trạng Thái
+
+Khi bạn bè thay đổi trạng thái, server broadcast:
+```json
+{
+  "cmd": "NOTIFY_FRIEND_STATUS",
+  "user_id": 123,
+  "status": "in_game",
+  "room_id": 456
+}
+```
+
+---
+
+## 8. Thống Kê & Xếp Hạng
+
+### 8.1 Thống Kê Cá Nhân
+
+**QuickMode Stats:**
+- Tổng số game đã chơi
+- Số game thắng (15/15)
+- Tỷ lệ thắng
+
+**1vN Stats:**
+- Tổng số game đã chơi
+- Số game thắng (top 1)
+- Tổng điểm tích lũy
+
+### 8.2 Lịch Sử Trận Đấu
+
+Mỗi game 1vN được lưu lại:
+- Session ID
+- Thời gian bắt đầu/kết thúc
+- Danh sách player và điểm
+- Winner ID
+- Chi tiết từng round (câu hỏi, đáp án của mỗi player)
+
+### 8.3 Replay System
+
+**Cấu trúc lưu trữ:**
+```
+onevn_sessions
+├── session_id
+├── room_id
+├── winner_id
+├── started_at
+├── ended_at
+└── players (JSONB)
+
+onevn_rounds
+├── round_id
+├── session_id
+├── round_number
+├── question_id
+├── difficulty
+├── started_at
+└── ended_at
+
+onevn_player_answers
+├── round_id
+├── user_id
+├── answer_selected
+├── is_correct
+├── score_gained
+└── time_remaining
+```
+
+### 8.4 Leaderboard
+
+**Xếp hạng theo:**
+1. Tổng số game thắng (1vN)
+2. Tổng điểm tích lũy
+3. Tỷ lệ thắng
+
+**Update realtime:**
+- Sau mỗi game kết thúc
+- Stats được update trong database
+- Có thể query bất kỳ lúc nào
+
+---
+
+## 9. Hệ Thống Xác Thực ✅ MỚI
+
+### 9.1 Chính Sách Đăng Nhập (Forbid Login Policy)
+
+**Nguyên tắc:** Mỗi tài khoản chỉ được đăng nhập từ **MỘT thiết bị** tại một thời điểm.
+
+```
+┌─────────────────────────────────────────────────┐
+│            FORBID LOGIN POLICY                  │
+├─────────────────────────────────────────────────┤
+│ • 1 Account = 1 Active Session                  │
+│ • Đăng nhập mới khi đã có session → TỪ CHỐI   │
+│ • Phải đăng xuất hoặc đợi timeout để đổi máy   │
+└─────────────────────────────────────────────────┘
+```
+
+### 9.2 Luồng Đăng Nhập
+
+```
+Client A (đã login)          Server              Client B (muốn login)
+      │                        │                        │
+      │◄── Active Session ─────│                        │
+      │                        │◄── REQ_LOGIN ──────────│
+      │                        │                        │
+      │                        │── Check active_count ──│
+      │                        │   (count = 1)          │
+      │                        │                        │
+      │                        │── RES_LOGIN ──────────►│
+      │                        │   ERROR:               │
+      │                        │   USER_ALREADY_LOGGED_IN
+      │                        │                        │
+      │◄── Session vẫn OK ─────│                        │
+```
+
+### 9.3 Session Timeout
+
+| Tham số | Giá trị | Mô tả |
+|---------|---------|-------|
+| **Session Timeout** | 5 phút (300s) | Thời gian không hoạt động tối đa |
+| **Cleanup Interval** | 30 giây | Chu kỳ kiểm tra session hết hạn |
+
+**Khi session timeout:**
+1. Server gửi thông báo `Session_Timeout`
+2. Socket bị đóng
+3. Session bị xóa khỏi database
+4. User có thể đăng nhập lại
+
+### 9.4 Xử Lý Đăng Xuất
+
+**Đăng xuất chủ động (Logout button):**
+```
+1. Client gửi CMD_REQ_LOGOUT
+2. Server deactivate session trong DB
+3. Server cleanup game state
+4. Server thông báo bạn bè offline
+5. Client về màn hình login
+```
+
+**Disconnect đột ngột (mất mạng, tắt app):**
+```
+1. Server phát hiện socket closed
+2. Server deactivate session trong DB
+3. Server cleanup game state
+4. User có thể login lại ngay
+```
+
+### 9.5 Bảo Mật
+
+| Tính Năng | Chi Tiết |
+|-----------|----------|
+| **Access Token** | 64 ký tự ngẫu nhiên, lưu trong DB |
+| **Password Hash** | SHA-256 với salt |
+| **Session Expiry** | 1 giờ (3600 giây) |
+| **Stale Cleanup** | Tự động xóa session > 5 phút không hoạt động |
+
+---
+
+## Tóm Tắt So Sánh 2 Chế Độ
+
+| Tiêu Chí | QuickMode | 1vN Mode |
+|----------|-----------|----------|
+| Số người chơi | 1 | 2-32 |
+| Mục tiêu | 15/15 đúng | Điểm cao nhất |
+| Trả lời sai | THUA ngay | 0 điểm, tiếp tục |
+| Timeout | N/A | 0 điểm, tiếp tục |
+| Trợ giúp 50:50 | ✅ (2 lần) | ❌ Không có |
+| Hệ thống điểm | Đơn giản | Phức tạp (thời gian + combo) |
+| Cạnh tranh realtime | ❌ | ✅ |
+| Replay | ❌ | ✅ |
+
+---
+
+## Tóm Tắt Quy Tắc Xác Thực ✅ MỚI
+
+| Tình Huống | Kết Quả |
+|------------|---------|
+| Login lần đầu | ✅ Thành công |
+| Login khi đã có session active | ❌ Bị từ chối |
+| Logout rồi login lại | ✅ Thành công |
+| Disconnect rồi login lại | ✅ Thành công (session đã deactivate) |
+| Không hoạt động > 5 phút | ✅ Session bị cleanup, có thể login lại |

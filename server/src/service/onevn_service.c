@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include "service/onevn_service.h"
 #include "service/commands.h"
 #include "service/protocol.h"
@@ -37,6 +38,8 @@ typedef struct OneVNGameState {
     int64_t *player_answered_round;  // Track which round each player last answered
     int timer_id;  // Timer ID for current round
     int64_t current_round_id;  // Database round_id for current round (for replay)
+    time_t round_start_time;   // Timestamp when current round started (for reconnect time calculation)
+    int *player_disconnected;  // Track players who are temporarily disconnected (awaiting reconnect)
     // Track used question IDs to prevent duplicates
     int64_t *used_question_ids;
     int used_question_count;
@@ -109,6 +112,7 @@ static void free_game_state(OneVNGameState *state) {
     if (state->player_consecutive_correct) free(state->player_consecutive_correct);
     if (state->player_eliminated) free(state->player_eliminated);
     if (state->player_answered_round) free(state->player_answered_round);
+    if (state->player_disconnected) free(state->player_disconnected);
     if (state->used_question_ids) free(state->used_question_ids);
     free(state);
 }
@@ -138,8 +142,10 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
     state->player_consecutive_correct = calloc(player_count, sizeof(int));
     state->player_eliminated = calloc(player_count, sizeof(int));
     state->player_answered_round = calloc(player_count, sizeof(int64_t));
+    state->player_disconnected = calloc(player_count, sizeof(int));  // For reconnect tracking
     state->timer_id = -1;
     state->current_round_id = -1;  // No round created yet
+    state->round_start_time = 0;   // Will be set when round starts
     
     // Initialize duplicate question tracking
     state->used_question_capacity = state->total_rounds + 10;  // Extra capacity
@@ -148,7 +154,8 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
 
     if (!state->player_ids || !state->player_scores || 
         !state->player_consecutive_correct || !state->player_eliminated ||
-        !state->player_answered_round || !state->used_question_ids) {
+        !state->player_answered_round || !state->player_disconnected ||
+        !state->used_question_ids) {
         free_game_state(state);
         return NULL;
     }
@@ -389,12 +396,14 @@ static void handle_start_game(ClientSession *sess, const char *payload, uint32_t
         free(players_init);
     }
 
-    // Update sessions' room_id BEFORE broadcasting (important!)
+    // Update sessions' room_id and status BEFORE broadcasting (important!)
     for (int i = 0; i < idx; i++) {
         ClientSession *player_sess = session_manager_get_by_user_id(player_ids[i]);
         if (player_sess) {
             session_manager_set_room(player_sess, room_id);
-            printf("[ONEVN] Set room_id=%lld for user_id=%lld\n",
+            // CRITICAL: Set status to IN_GAME for reconnect to work
+            session_manager_update_status(player_ids[i], USER_STATUS_IN_GAME, room_id);
+            printf("[ONEVN] Set room_id=%lld, status=IN_GAME for user_id=%lld\n",
                    (long long)room_id, (long long)player_ids[i]);
             fflush(stdout);
         } else {
@@ -936,9 +945,10 @@ static void send_next_question(OneVNGameState *state) {
     if (state->timer_id >= 0) {
         game_timer_cancel(state->timer_id);
     }
+    state->round_start_time = time(NULL);  // Record start time for reconnect time calculation
     state->timer_id = game_timer_create(15, state->session_id, round_timeout_callback, state);
     
-    printf("[ONEVN] Question sent successfully, timer started\n");
+    printf("[ONEVN] Question sent successfully, timer started at %ld\n", (long)state->round_start_time);
     fflush(stdout);
 }
 
@@ -1038,4 +1048,104 @@ int onevn_eliminate_player_by_room(int64_t room_id, int64_t user_id) {
     fflush(stdout);
 
     return 0;
+}
+
+// Mark a player as temporarily disconnected (awaiting reconnect)
+// This does NOT eliminate them - they can still reconnect within grace period
+int onevn_mark_player_disconnected(int64_t room_id, int64_t user_id) {
+    OneVNGameState *state = get_game_state_by_room(room_id);
+    if (!state) {
+        printf("[ONEVN] onevn_mark_player_disconnected: game state not found for room_id=%ld\n", (long)room_id);
+        return -1;
+    }
+
+    for (int i = 0; i < state->player_count; i++) {
+        if (state->player_ids[i] == user_id) {
+            if (state->player_eliminated[i]) {
+                printf("[ONEVN] onevn_mark_player_disconnected: player already eliminated\n");
+                return -2;
+            }
+            state->player_disconnected[i] = 1;
+            printf("[ONEVN] Marked player[%d] user_id=%ld as disconnected (awaiting reconnect)\n", 
+                   i, (long)user_id);
+            fflush(stdout);
+            return 0;
+        }
+    }
+    printf("[ONEVN] onevn_mark_player_disconnected: player_id=%ld not found in game\n", (long)user_id);
+    return -1;
+}
+
+// Restore a player who has reconnected
+// Returns: 0 = success, -1 = not found, -2 = already eliminated
+int onevn_restore_player(int64_t room_id, int64_t user_id) {
+    OneVNGameState *state = get_game_state_by_room(room_id);
+    if (!state) {
+        printf("[ONEVN] onevn_restore_player: game state not found for room_id=%ld\n", (long)room_id);
+        return -1;
+    }
+
+    for (int i = 0; i < state->player_count; i++) {
+        if (state->player_ids[i] == user_id) {
+            if (state->player_eliminated[i]) {
+                printf("[ONEVN] onevn_restore_player: player already eliminated, cannot restore\n");
+                return -2;
+            }
+            state->player_disconnected[i] = 0;  // Mark as connected again
+            printf("[ONEVN] Restored player[%d] user_id=%ld to game (reconnected)\n", 
+                   i, (long)user_id);
+            fflush(stdout);
+            return 0;
+        }
+    }
+    printf("[ONEVN] onevn_restore_player: player_id=%ld not found in game\n", (long)user_id);
+    return -1;
+}
+
+// Get player's current game state snapshot for reconnect
+// Returns: 0 = success, -1 = not found
+int onevn_get_player_state(int64_t room_id, int64_t user_id, 
+                           int *out_score, int *out_consecutive, int *out_current_round) {
+    OneVNGameState *state = get_game_state_by_room(room_id);
+    if (!state) {
+        printf("[ONEVN] onevn_get_player_state: game state not found for room_id=%ld\n", (long)room_id);
+        return -1;
+    }
+
+    for (int i = 0; i < state->player_count; i++) {
+        if (state->player_ids[i] == user_id) {
+            if (out_score) *out_score = state->player_scores[i];
+            if (out_consecutive) *out_consecutive = state->player_consecutive_correct[i];
+            if (out_current_round) *out_current_round = state->current_round;
+            printf("[ONEVN] Got player state: user_id=%ld, score=%d, consecutive=%d, round=%d\n",
+                   (long)user_id, state->player_scores[i], 
+                   state->player_consecutive_correct[i], state->current_round);
+            fflush(stdout);
+            return 0;
+        }
+    }
+    printf("[ONEVN] onevn_get_player_state: player_id=%ld not found in game\n", (long)user_id);
+    return -1;
+}
+
+// Get remaining time in current round (for reconnect scenario)
+// Returns: seconds remaining, or 0 if no active round
+int onevn_get_round_time_remaining(int64_t room_id) {
+    OneVNGameState *state = get_game_state_by_room(room_id);
+    if (!state || state->round_start_time == 0) {
+        return 0;
+    }
+
+    time_t now = time(NULL);
+    int elapsed = (int)(now - state->round_start_time);
+    int remaining = 15 - elapsed;  // 15 seconds per round
+    
+    if (remaining < 0) remaining = 0;
+    if (remaining > 15) remaining = 15;
+    
+    printf("[ONEVN] Round time remaining for room_id=%ld: %d seconds\n", 
+           (long)room_id, remaining);
+    fflush(stdout);
+    
+    return remaining;
 }

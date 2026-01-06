@@ -24,6 +24,7 @@ SERVICE_OBJS = \
     src/service/onevn_service.o \
     src/service/protocol.o \
     src/service/quickmode_service.o \
+    src/service/reconnect_manager.o \
     src/service/server.o \
     src/service/session_manager.o \
     src/service/stats_service.o
@@ -58,6 +59,7 @@ TEST_ONEVN_INTERACTIVE_OBJ = src/test/test_onevn_interactive.o
 TEST_HASH_PASSWORD_OBJ = src/test/test_hash_password.o
 TEST_ROOM_WAITING_CHAT_OBJ = src/test/test_room_waiting_chat.o
 TEST_INVITE_FLOW_OBJ = src/test/test_invite_flow.o
+TEST_RECONNECT_OBJ = src/test/test_reconnect.o
 
 # ==== TARGET MẶC ĐỊNH ====
 
@@ -78,7 +80,8 @@ all: $(BUILD_DIR)/server \
      $(BUILD_DIR)/test_onevn \
      $(BUILD_DIR)/test_onevn_interactive \
      $(BUILD_DIR)/test_hash_password \
-     $(BUILD_DIR)/test_room_waiting_chat
+     $(BUILD_DIR)/test_room_waiting_chat \
+     $(BUILD_DIR)/test_reconnect
 
 # ==== SERVER ====
 
@@ -156,6 +159,10 @@ $(BUILD_DIR)/test_room_waiting_chat: $(COMMON_OBJS) $(TEST_ROOM_WAITING_CHAT_OBJ
 $(BUILD_DIR)/test_invite_flow: $(TEST_INVITE_FLOW_OBJ)
 	@mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) $(TEST_INVITE_FLOW_OBJ) -o $@ $(LDFLAGS)
+
+$(BUILD_DIR)/test_reconnect: $(TEST_RECONNECT_OBJ)
+	@mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) $(TEST_RECONNECT_OBJ) -o $@ $(LDFLAGS)
 
 # ==== RULE BIÊN DỊCH CHUNG ====
 

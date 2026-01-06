@@ -259,6 +259,13 @@ int session_manager_broadcast_to_room(int64_t room_id, uint16_t cmd, const char 
 		if (g_session_manager->sessions[i]) {
 			total_sessions++;
 			if (g_session_manager->sessions[i]->room_id == room_id) {
+				// CRITICAL: Check if socket is still valid before sending
+				if (g_session_manager->sessions[i]->socket_fd < 0) {
+					printf("[SESSION_MGR] Skipping session[%d] (socket closed): user_id=%d\n",
+					       i, g_session_manager->sessions[i]->user_id);
+					fflush(stdout);
+					continue;
+				}
 				printf("[SESSION_MGR] Broadcasting to session[%d]: user_id=%d, room_id=%lld\n",
 				       i, g_session_manager->sessions[i]->user_id, 
 				       (long long)g_session_manager->sessions[i]->room_id);

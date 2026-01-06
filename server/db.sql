@@ -108,6 +108,9 @@ CREATE TABLE room (
   owner_id               BIGINT NOT NULL,
   status                 TEXT NOT NULL CHECK (status IN ('WAITING','STARTING','IN_PROGRESS','FINISHED')),
   max_number_players     INT  NOT NULL DEFAULT 8,
+  easy_count             INT  NOT NULL DEFAULT 5,
+  medium_count           INT  NOT NULL DEFAULT 5,
+  hard_count             INT  NOT NULL DEFAULT 5,
   created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   started_at             TIMESTAMPTZ NULL,
   ended_at               TIMESTAMPTZ NULL,
@@ -121,6 +124,7 @@ CREATE TABLE room_members (
   room_id   BIGINT NOT NULL,
   user_id   BIGINT NOT NULL,
   joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  eliminated BOOLEAN NOT NULL DEFAULT FALSE,
   PRIMARY KEY (room_id, user_id),
   CONSTRAINT fk_rmem_room FOREIGN KEY (room_id) REFERENCES room(room_id) ON DELETE CASCADE,
   CONSTRAINT fk_rmem_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE

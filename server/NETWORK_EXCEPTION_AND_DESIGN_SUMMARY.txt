@@ -1,0 +1,746 @@
+# PHÂN TÍCH KIẾN TRÚC MẠNG VÀ XỬ LÝ NGOẠI LỆ
+
+## Mục Lục
+1. [Socket & Thiết Lập Mạng](#1-socket--thiết-lập-mạng)
+2. [Quản Lý Session & Tài Khoản](#2-quản-lý-session--tài-khoản)
+3. [Phòng & Logic Game Liên Quan Đến Sự Kiện Mạng](#3-phòng--logic-game-liên-quan-đến-sự-kiện-mạng)
+4. [Cơ Chế Reconnect](#4-cơ-chế-reconnect)
+5. [Các Kịch Bản Lỗi & Xử Lý](#5-các-kịch-bản-lỗi--xử-lý)
+6. [Quyết Định Thiết Kế](#6-quyết-định-thiết-kế)
+7. [Phần Hỏi Đáp Bảo Vệ](#7-phần-hỏi-đáp-bảo-vệ)
+
+---
+
+## 1. Socket & Thiết Lập Mạng
+
+### 1.1 Khởi Tạo Server Socket
+
+| Thuộc Tính | Chi Tiết Triển Khai |
+|------------|---------------------|
+| **Giao thức** | TCP (SOCK_STREAM) |
+| **Chế độ I/O** | Non-blocking (`O_NONBLOCK` qua `fcntl()`) |
+| **Address Family** | Dual-stack IPv4/IPv6 (`AF_UNSPEC`) |
+| **Tùy chọn Socket** | `SO_REUSEADDR` để cho phép reuse địa chỉ |
+| **Backlog Queue** | 16 kết nối đang chờ |
+| **Port mặc định** | 9000 (có thể cấu hình qua `SERVER_PORT`) |
+
+**Quy trình tạo socket:**
+1. Gọi `getaddrinfo()` với `AI_PASSIVE` để bind tất cả interfaces
+2. Duyệt kết quả để tìm địa chỉ phù hợp
+3. Tạo socket với `socket()`
+4. Set `SO_REUSEADDR` để tránh lỗi "Address already in use"
+5. Bind socket vào địa chỉ
+6. Đặt socket về chế độ non-blocking
+7. Gọi `listen()` với backlog = 16
+
+### 1.2 Mô Hình I/O Multiplexing
+
+**Công nghệ sử dụng:** Linux `epoll` với Edge-Triggered mode (EPOLLET)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    EPOLL EVENT LOOP                         │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
+│  │ Server FD   │    │ Client FD 1 │    │ Client FD N │     │
+│  │ EPOLLIN|ET  │    │ EPOLLIN|ET  │    │ EPOLLIN|ET  │     │
+│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘     │
+│         │                  │                  │             │
+│         └──────────────────┼──────────────────┘             │
+│                            ▼                                │
+│                    ┌───────────────┐                        │
+│                    │ epoll_wait()  │                        │
+│                    │  timeout=100ms│                        │
+│                    └───────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Đặc điểm:**
+- **Timeout:** 100ms cho `epoll_wait()` để cho phép xử lý timer định kỳ
+- **Events:** `EPOLLIN | EPOLLET` cho tất cả file descriptors
+- **MAX_EPOLL_EVENTS:** 64 events mỗi lần poll
+- **MAX_SESSIONS:** 1024 client đồng thời
+
+### 1.3 Chấp Nhận Kết Nối Client
+
+**Cơ chế Edge-Triggered Accept:**
+```
+Vòng lặp accept liên tục cho đến khi:
+  - accept() trả về EAGAIN/EWOULDBLOCK (không còn kết nối pending)
+  - Hoặc gặp lỗi khác
+```
+
+**Quy trình cho mỗi client mới:**
+1. `accept()` trả về client socket FD
+2. Đặt client socket về non-blocking (`fcntl()`)
+3. Khởi tạo `ClientSession` mới qua `client_session_new()`
+4. Thêm session vào `SessionManager`
+5. Đăng ký client FD với epoll (`EPOLLIN | EPOLLET`)
+6. Lưu con trỏ session vào `epoll_event.data.ptr`
+
+### 1.4 Xử Lý I/O Dữ Liệu
+
+**Cấu trúc Protocol Header:**
+```c
+typedef struct {
+    uint16_t cmd;        // Mã lệnh (network byte order)
+    uint16_t user_id;    // ID người dùng (16-bit truncated)
+    uint32_t length;     // Độ dài payload (network byte order)
+} PacketHeader;         // Tổng: 8 bytes
+```
+
+**Buffer và Partial Read:**
+- **Buffer size:** 8192 bytes (`READ_BUFFER_SIZE`)
+- **Cơ chế accumulation:** Dữ liệu được tích lũy trong buffer cho đến khi đủ packet hoàn chỉnh
+- **Trạng thái đọc:**
+  - `read_buffer_len`: Số bytes hiện có trong buffer
+  - `expected_len`: Tổng độ dài packet dự kiến (header + payload)
+  - `pending_cmd`: Command từ header (nếu đã đọc header)
+
+**Quy trình đọc packet:**
+```
+1. recv() vào buffer tại vị trí read_buffer_len
+2. Nếu recv() <= 0 → Ngắt kết nối (-1)
+3. Cộng bytes đọc vào read_buffer_len
+4. Nếu chưa đọc header (expected_len == 0):
+   - Kiểm tra có đủ 8 bytes không
+   - Parse header: cmd, length
+   - Tính expected_len = 8 + length
+   - Kiểm tra không vượt quá 8KB
+5. Kiểm tra read_buffer_len >= expected_len:
+   - Có → Packet hoàn chỉnh, trả về 1
+   - Không → Cần thêm dữ liệu, trả về 0
+6. Reset buffer sau khi xử lý xong packet
+```
+
+### 1.5 Phát Hiện Ngắt Kết Nối
+
+| Phương Pháp | Cách Phát Hiện | Hành Động |
+|-------------|----------------|-----------|
+| **recv() = 0** | Client đóng kết nối graceful | Xóa session, thông báo offline |
+| **recv() < 0** | Lỗi socket (errno) | Xử lý lỗi, xóa session |
+| **Packet quá lớn** | expected_len > 8KB | Đóng kết nối, bảo vệ DoS |
+| **SIGPIPE** | Ghi vào socket đã đóng | Bỏ qua (không xử lý đặc biệt) |
+
+### 1.6 Heartbeat & Stale Session Cleanup ✅ MỚI
+
+**Cơ chế phát hiện session không hoạt động:**
+
+| Tham số | Giá trị | Mô tả |
+|---------|---------|-------|
+| `STALE_CLEANUP_INTERVAL` | 30 giây | Chu kỳ kiểm tra |
+| `STALE_SESSION_TIMEOUT` | 300 giây (5 phút) | Thời gian tối đa không hoạt động |
+
+**Quy trình cleanup:**
+```
+Mỗi 30 giây:
+1. Tìm user_ids có session hết hạn trong database
+   dao_sessions_find_stale_users(STALE_SESSION_TIMEOUT)
+   
+2. Với mỗi stale user:
+   a. Tìm ClientSession tương ứng
+   b. Gửi thông báo: protocol_send_error(sess, 0x0803, "Session_Timeout")
+   c. Đóng socket: close(sess->socket_fd)
+   
+3. Cleanup trong database:
+   dao_sessions_cleanup_stale(STALE_SESSION_TIMEOUT)
+```
+
+---
+
+## 2. Quản Lý Session & Tài Khoản
+
+### 2.1 Cấu Trúc ClientSession
+
+```c
+typedef struct ClientSession {
+    int socket_fd;             // File descriptor (-1 nếu unused)
+    int64_t user_id;           // ID người dùng (0 nếu chưa đăng nhập)
+    char access_token[65];     // Token xác thực
+    int64_t room_id;           // ID phòng hiện tại (0 nếu không trong phòng)
+    UserStatus status;         // ONLINE, IN_WAITING_ROOM, IN_GAME, OFFLINE
+    
+    // Buffer cho partial reads
+    char read_buffer[8192];
+    size_t read_buffer_len;
+    size_t expected_len;
+    uint16_t pending_cmd;
+} ClientSession;
+```
+
+### 2.2 Liên Kết Session với Socket
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    SESSION MANAGER                        │
+├──────────────────────────────────────────────────────────┤
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐     │
+│  │Session 0│  │Session 1│  │Session 2│  │  NULL   │ ... │
+│  │ fd=5    │  │ fd=7    │  │ fd=9    │  │         │     │
+│  │ uid=101 │  │ uid=0   │  │ uid=205 │  │         │     │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘     │
+│         ▲                                               │
+│         │                                               │
+│  epoll_event.data.ptr ──────────────────────────────────│
+└──────────────────────────────────────────────────────────┘
+```
+
+**Mapping:**
+- `epoll_event.data.ptr` → Trỏ trực tiếp đến `ClientSession*`
+- `session.socket_fd` → File descriptor của socket
+- `session.user_id` → ID người dùng sau khi đăng nhập
+
+### 2.3 Chính Sách Forbid Login ✅ MỚI (Thay Đổi)
+
+**Trước đây:** Single-Session Policy - Kick session cũ khi login mới  
+**Hiện tại:** **Forbid Login Policy** - TỪ CHỐI login nếu đã có session đang hoạt động
+
+```c
+typedef enum {
+    AUTH_OK = 0,
+    AUTH_ERR_DB   = -1,
+    AUTH_ERR_EXIST= -2,
+    AUTH_ERR_CRED = -3,
+    AUTH_ERR_USER_ALREADY_LOGGED_IN = -4  // ✅ MỚI
+} AuthResult;
+```
+
+**Quy trình đăng nhập:**
+```
+1. Xác thực username/password
+2. Kiểm tra active session:
+   active_count = dao_sessions_count_active_by_user(user_id)
+   
+3. NẾU active_count > 0:
+   → TỪ CHỐI login
+   → Trả về lỗi "USER_ALREADY_LOGGED_IN"
+   
+4. NẾU active_count == 0:
+   → Tạo session mới trong database
+   → Gán user_id cho ClientSession
+   → Thông báo bạn bè online
+```
+
+**Hậu quả cho client đang cố login:**
+- Nhận `CMD_RES_LOGIN` với error = "USER_ALREADY_LOGGED_IN"
+- Socket vẫn mở nhưng không được phép login
+- Phải đợi session cũ logout hoặc timeout (5 phút)
+
+### 2.4 Xử Lý Logout & Disconnect
+
+**Khi logout chủ động (CMD_REQ_LOGOUT):**
+```
+1. Deactivate session trong database:
+   dao_sessions_deactivate_all_by_user(user_id)
+   
+2. Cập nhật status thành OFFLINE
+3. Cleanup game sessions
+4. Thông báo bạn bè offline
+5. Clear session data (user_id = 0)
+6. Gửi response OK
+```
+
+**Khi disconnect (socket close):**
+```
+1. Deactivate session trong database:
+   dao_sessions_deactivate_all_by_user(user_id)
+   
+2. Cleanup quickmode session
+3. Xóa khỏi session manager
+4. Thông báo bạn bè offline
+```
+
+### 2.5 Trạng Thái Người Dùng
+
+```c
+typedef enum {
+    USER_STATUS_ONLINE = 0,          // Trong lobby
+    USER_STATUS_IN_WAITING_ROOM = 1, // Trong phòng chờ
+    USER_STATUS_IN_GAME = 2,         // Đang chơi game
+    USER_STATUS_OFFLINE = 3          // ✅ MỚI: Đã đăng xuất
+} UserStatus;
+```
+
+**Cập nhật trạng thái:**
+- **Login thành công → ONLINE**
+- **Join room → IN_WAITING_ROOM**
+- **Game start → IN_GAME**
+- **Leave room/Game end → ONLINE**
+- **Logout/Disconnect → OFFLINE**
+
+---
+
+## 3. Phòng & Logic Game Liên Quan Đến Sự Kiện Mạng
+
+### 3.1 Vòng Đời Phòng (Room Lifecycle)
+
+```
+        ┌─────────┐
+        │ WAITING │ ◄─── Phòng mới được tạo
+        └────┬────┘
+             │ Host nhấn Start
+             ▼
+        ┌──────────┐
+        │ STARTING │ ◄─── Đang khởi tạo game
+        └────┬─────┘
+             │ Game bắt đầu
+             ▼
+       ┌────────────┐
+       │IN_PROGRESS │ ◄─── Đang chơi
+       └─────┬──────┘
+             │ Tất cả câu hỏi xong
+             ▼
+        ┌──────────┐
+        │ FINISHED │ ◄─── Game kết thúc
+        └──────────┘
+```
+
+### 3.2 Trách Nhiệm của Host
+
+| Vai Trò | Quyền Hạn |
+|---------|-----------|
+| **Tạo phòng** | Chỉ host mới có thể tạo |
+| **Bắt đầu game** | Chỉ host mới có thể start (cần ≥2 người) |
+| **Cấu hình câu hỏi** | Số lượng Easy/Medium/Hard |
+| **Xóa phòng** | Tự động khi host rời (trước khi game bắt đầu) |
+
+### 3.3 Xử Lý Host Disconnect
+
+**Trường hợp 1: Host rời TRƯỚC khi game bắt đầu (WAITING)**
+```
+1. Xóa phòng khỏi database: dao_rooms_delete()
+2. Broadcast CMD_NOTIFY_ROOM_CLOSED đến tất cả member
+3. Payload: {"room_id": X, "reason": "owner_left"}
+4. Tất cả player bị đẩy về lobby
+```
+
+**Trường hợp 2: Host rời TRONG KHI game đang chạy (IN_PROGRESS)**
+```
+1. Đánh dấu host là "eliminated" trong game state
+2. Game TIẾP TỤC với các player còn lại
+3. Host được coi như đã thua, nhận 0 điểm round đó
+4. Broadcast CMD_NOTIFY_ELIMINATION
+```
+
+### 3.4 Xử Lý Player Thường Disconnect
+
+**Trong phòng chờ (WAITING):**
+```
+1. Gọi dao_rooms_leave() xóa khỏi room_members
+2. Cập nhật status về ONLINE
+3. Broadcast ROOM_UPDATE với danh sách member mới
+```
+
+**Trong game (IN_PROGRESS/STARTING):**
+```
+1. Gọi onevn_eliminate_player_by_room() đánh dấu eliminated
+2. Gọi dao_rooms_mark_eliminated() lưu vào DB
+3. Xóa player khỏi session's room_id
+4. Broadcast CMD_NOTIFY_ELIMINATION
+5. Player KHÔNG thể rejoin game đó
+```
+
+### 3.5 Cơ Chế Timeout và Cleanup
+
+**Game Timer System:**
+```c
+// Cấu trúc timer
+typedef struct {
+    int timer_id;
+    time_t start_time;
+    int timeout_seconds;
+    int64_t context_id;      // session_id để validate
+    timer_callback_t callback;
+    void *user_data;         // game state pointer
+    int active;
+} CallbackTimer;
+```
+
+**Timeout cho mỗi câu hỏi:** 15 giây
+
+**Xử lý khi timeout:**
+1. Tất cả player chưa trả lời → 0 điểm round đó
+2. Reset consecutive_correct counter
+3. Gửi `CMD_RES_SUBMIT_ANSWER_1VN` với `timeout: true`
+4. Broadcast leaderboard update
+5. Chờ 3 giây, gửi câu hỏi tiếp theo
+
+**Polling Timer:**
+```c
+// Gọi trong main event loop mỗi 100ms
+game_timer_check_and_run();
+```
+
+---
+
+## 4. Cơ Chế Reconnect ✅ ĐÃ TRIỂN KHAI
+
+### 4.1 Tổng Quan
+
+**Tình trạng:** ✅ **ĐÃ HỖ TRỢ** reconnect trong game 1vN với grace period 30 giây
+
+Protocol commands:
+```c
+#define CMD_REQ_RECONNECT  0x0804  // Client gửi để reconnect
+#define CMD_RES_RECONNECT  0x0805  // Server phản hồi
+```
+
+### 4.2 Cơ Chế Hoạt Động
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RECONNECT FLOW DIAGRAM                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Client mất mạng (đang trong game 1vN)                              │
+│       │                                                             │
+│       ▼                                                             │
+│  Server: recv() = -1 (socket closed)                                │
+│       │                                                             │
+│       ▼                                                             │
+│  ┌───────────────────────────────────────────────────────────┐      │
+│  │ Kiểm tra: sess->status == IN_GAME && room_id > 0          │      │
+│  │   → reconnect_save_state() - Lưu pending state            │      │
+│  │   → game_timer_create(30s) - Tạo timer 30 giây            │      │
+│  │   → onevn_mark_player_disconnected() - Đánh dấu tạm       │      │
+│  │   → KHÔNG deactivate session, KHÔNG notify offline        │      │
+│  │   → Broadcast "disconnected" đến room members             │      │
+│  └───────────────────────────────────────────────────────────┘      │
+│       │                                                             │
+│       ├───────────────────────┬────────────────────────┐            │
+│       │                       │                        │            │
+│       ▼                       ▼                        ▼            │
+│  [< 30s]                 [> 30s]                 [Reconnect]        │
+│  Chờ reconnect          Timer callback           Client gửi         │
+│  Game tiếp tục          ├─→ eliminate           CMD_REQ_RECONNECT   │
+│  (còn time_remaining)   ├─→ deactivate session        │             │
+│                         └─→ notify offline            │             │
+│                                                       ▼             │
+│                                        ┌─────────────────────────┐  │
+│                                        │ reconnect_handle()      │  │
+│                                        │  - Verify access_token  │  │
+│                                        │  - Check grace period   │  │
+│                                        │  - Restore session      │  │
+│                                        │  - Restore game state   │  │
+│                                        │  - Send time_remaining  │  │
+│                                        │  - Broadcast reconnected│  │
+│                                        └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 4.3 Hành Vi Khi Mất Kết Nối (Với Reconnect Policy) ✅ CẬP NHẬT
+
+| Tình Huống | Kết Quả |
+|------------|---------|
+| **Disconnect trong game 1vN** | Pending state được lưu, có 30s để reconnect |
+| **Reconnect thành công < 30s** | Khôi phục session, tiếp tục chơi với thời gian còn lại |
+| **Reconnect sau 30s** | Bị eliminate, nhận error "GRACE_PERIOD_EXPIRED" |
+| **Reconnect với sai token** | Nhận error "INVALID_TOKEN" |
+| **Disconnect ngoài game** | Cleanup như bình thường (không có grace period) |
+| **QuickMode đang chơi** | Session bị xóa, mất tiến trình (không hỗ trợ reconnect) |
+
+### 4.4 Reconnect Request Format
+
+**Client → Server:**
+```json
+{
+    "user_id": 12345,
+    "access_token": "abc123..."
+}
+```
+
+**Server → Client (Success):**
+```json
+{
+    "status": "reconnected",
+    "room_id": 100,
+    "score": 1500,
+    "consecutive_correct": 3,
+    "current_round": 5,
+    "time_remaining": 8
+}
+```
+
+**Server → Client (Error):**
+```json
+{
+    "error": "GRACE_PERIOD_EXPIRED" | "INVALID_TOKEN" | "NO_PENDING_SESSION" | "ALREADY_ELIMINATED"
+}
+```
+
+### 4.5 Bảo Toàn Trạng Thái
+
+**QuickMode:**
+- Game state lưu trong bộ nhớ (`QuickModeSession` linked list)
+- Khi disconnect → `quickmode_cleanup_user()` XÓA session
+- **Không hỗ trợ reconnect** (chơi solo, không cần thiết)
+
+**1vN Mode:**
+- Game state trong `OneVNGameState` array (in-memory)
+- Khi disconnect → `onevn_mark_player_disconnected()` đánh dấu tạm thời
+- Pending state lưu trong `PendingReconnect` linked list
+- **Hỗ trợ reconnect 30 giây** với khôi phục score, combo, thời gian còn lại
+
+### 4.6 Files Liên Quan
+
+| File | Vai Trò |
+|------|---------|
+| `reconnect_manager.h` | Định nghĩa `PendingReconnect` struct và API |
+| `reconnect_manager.c` | Xử lý save/restore state, timeout callback |
+| `server.c` | Kiểm tra IN_GAME khi disconnect, gọi reconnect_save_state |
+| `dispatcher.c` | Handle CMD_REQ_RECONNECT |
+| `onevn_service.c` | Functions: mark_disconnected, restore_player, get_player_state |
+
+---
+
+
+## 5. Các Kịch Bản Lỗi & Xử Lý
+
+### 5.1 Client Đột Ngột Ngắt Kết Nối
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Mất mạng đột ngột<br>- Kill app<br>- Crash client<br>- Tắt máy |
+| **Phát hiện** | `recv()` trả về 0 hoặc -1 với `errno = ECONNRESET` |
+| **Xử lý Server** | 1. Deactivate session trong DB<br>2. Cleanup quickmode session<br>3. Eliminate từ 1vN game<br>4. Xóa session khỏi manager<br>5. Thông báo friends offline<br>6. Close socket FD |
+| **Xử lý Client** | N/A (client đã ngắt) |
+
+### 5.2 Network Timeout / Stale Session ✅ CẬP NHẬT
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Mạng chậm<br>- Firewall drop packets<br>- Client treo |
+| **Phát hiện** | `dao_sessions_find_stale_users()` kiểm tra mỗi 30 giây |
+| **Timeout** | 5 phút (300 giây) không có hoạt động |
+| **Xử lý Server** | 1. Gửi `CMD_NOTIFY_ERROR` với "Session_Timeout"<br>2. Đóng socket<br>3. Cleanup session trong DB |
+| **Xử lý Client** | Hiển thị thông báo timeout, yêu cầu login lại |
+
+### 5.3 Invalid Packet
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Malformed data<br>- Protocol version mismatch<br>- Attack attempt |
+| **Phát hiện** | 1. Payload length > 8KB<br>2. Unknown command code<br>3. Missing required JSON fields |
+| **Xử lý Server** | 1. Packet quá lớn → Đóng kết nối<br>2. Unknown command → Gửi error response<br>3. Invalid JSON → Gửi error response |
+| **Xử lý Client** | Hiển thị error message |
+
+### 5.4 Half Message (TCP Stream Issue)
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Packet fragmentation<br>- Slow network<br>- MTU issues |
+| **Phát hiện** | `read_buffer_len < expected_len` |
+| **Xử lý Server** | 1. Trả về 0 (cần thêm data)<br>2. Giữ nguyên buffer<br>3. Đợi lần recv tiếp theo<br>4. Accumulate cho đến khi đủ |
+| **Xử lý Client** | Tương tự mechanism ở phía client |
+
+### 5.5 Duplicate Login ✅ THAY ĐỔI
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Đăng nhập từ thiết bị khác<br>- Tab browser khác<br>- Shared account |
+| **Phát hiện** | `dao_sessions_count_active_by_user()` trả về > 0 |
+| **Xử lý Server** | **TỪ CHỐI login mới**<br>Trả về lỗi `USER_ALREADY_LOGGED_IN` |
+| **Xử lý Client** | Hiển thị "Tài khoản đã được đăng nhập từ nơi khác. Vui lòng đợi 5 phút hoặc đăng xuất từ thiết bị cũ." |
+
+**So sánh với thiết kế cũ:**
+| Tiêu chí | Cũ (Kick Session) | Mới (Forbid Login) |
+|----------|-------------------|-------------------|
+| Login mới thành công? | ✅ Có | ❌ Không |
+| Session cũ bị ảnh hưởng? | ❌ Bị kick | ✅ Tiếp tục hoạt động |
+| UX | Khó chịu cho user cũ | Khó chịu cho user mới |
+| Bảo mật | Kém (dễ bị chiếm account) | Tốt hơn |
+
+### 5.6 Server Overload
+
+| Thuộc Tính | Chi Tiết |
+|------------|----------|
+| **Nguyên nhân** | - Quá nhiều client đồng thời<br>- DoS attack<br>- Memory exhaustion |
+| **Phát hiện** | 1. `session_count >= MAX_SESSIONS (1024)`<br>2. `game_count >= MAX_GAMES (100)`<br>3. Memory allocation fail |
+| **Xử lý Server** | 1. Từ chối connection mới<br>2. Gửi error response<br>3. Close socket ngay |
+| **Xử lý Client** | Retry với exponential backoff (đề xuất) |
+
+---
+
+## 6. Quyết Định Thiết Kế
+
+### 6.1 Những Gì ĐÃ Triển Khai
+
+| Tính Năng | Triển Khai |
+|-----------|------------|
+| ✅ TCP Connection | SOCK_STREAM với non-blocking I/O |
+| ✅ Epoll multiplexing | Edge-triggered cho hiệu suất cao |
+| ✅ Partial packet handling | Buffer accumulation với state machine |
+| ✅ **Forbid Login Policy** | Từ chối login nếu đã có session active |
+| ✅ **Session Timeout** | 5 phút không hoạt động → cleanup |
+| ✅ **Heartbeat Check** | Kiểm tra stale sessions mỗi 30 giây |
+| ✅ Room lifecycle | WAITING → IN_PROGRESS → FINISHED |
+| ✅ Game state in-memory | Linked list/Array cho QuickMode/1vN |
+| ✅ Timer system | Callback-based với polling 100ms |
+| ✅ Binary protocol | 8-byte header + JSON payload |
+| ✅ Graceful disconnect | Deactivate DB session, cleanup, notify |
+
+### 6.2 Những Gì THIẾU và NÊN Triển Khai
+
+| Tính Năng | Lý Do Cần |
+|-----------|-----------|
+| ❌ Reconnect mechanism | Cho phép resume game sau disconnect |
+| ❌ Persistent game state | Backup game state để khôi phục |
+| ❌ Rate limiting | Chống spam/DoS |
+| ❌ TLS/SSL encryption | Bảo mật dữ liệu |
+| ❌ Load balancing | Scale horizontal |
+| ❌ Health check endpoint | Monitoring |
+| ❌ TCP Keepalive | Phát hiện zombie connections nhanh hơn |
+
+### 6.3 Trade-offs và Giới Hạn
+
+**1. Forbid Login vs Kick Session**
+- **Chọn:** Forbid Login
+- **Ưu điểm:** Bảo vệ session đang hoạt động, bảo mật tốt hơn
+- **Nhược điểm:** UX không tốt nếu quên đăng xuất
+
+**2. Session Timeout 5 phút**
+- **Chọn:** 300 giây
+- **Ưu điểm:** Đủ dài để xử lý mất mạng tạm thời
+- **Nhược điểm:** Phải đợi 5 phút nếu quên đăng xuất
+
+**3. Epoll Edge-Triggered**
+- **Chọn:** Edge-Triggered
+- **Ưu điểm:** Hiệu suất cao, ít syscall
+- **Nhược điểm:** Phức tạp hơn, phải drain hết buffer
+
+**4. In-memory Game State**
+- **Chọn:** Linked list (QuickMode), Array (1vN)
+- **Ưu điểm:** Nhanh, đơn giản
+- **Nhược điểm:** Mất khi server restart, không scale
+
+---
+
+## 7. Phần Hỏi Đáp Bảo Vệ
+
+### Q1: Tại sao chọn epoll thay vì select hoặc poll?
+
+**Trả lời:**
+- **select():** Giới hạn FD_SETSIZE (thường 1024), O(n) mỗi lần gọi
+- **poll():** Không giới hạn FD nhưng vẫn O(n)
+- **epoll():** O(1) cho mỗi event, chỉ trả về FD có sự kiện, hiệu quả với hàng nghìn kết nối
+
+### Q2: Edge-Triggered mode hoạt động thế nào?
+
+**Trả lời:**
+Edge-Triggered chỉ thông báo khi có **thay đổi trạng thái** (edge), không phải khi **có dữ liệu** (level). Khi nhận EPOLLIN, phải đọc hết dữ liệu bằng vòng lặp cho đến khi `recv()` trả về EAGAIN.
+
+### Q3: Làm sao xử lý TCP stream reassembly?
+
+**Trả lời:**
+Sử dụng state machine với 3 trạng thái:
+1. **Đang đọc header:** Tích lũy đến khi có 8 bytes
+2. **Parse header:** Xác định `expected_len = 8 + payload_length`
+3. **Đọc payload:** Tích lũy đến khi `buffer_len >= expected_len`
+
+### Q4: Giải thích Forbid Login Policy?
+
+**Trả lời:**
+Khi user đăng nhập, server kiểm tra trong database xem có session active nào không. Nếu có, TỪ CHỐI login mới với lỗi `USER_ALREADY_LOGGED_IN`. User phải đợi session cũ hết hạn (5 phút) hoặc logout từ thiết bị cũ.
+
+**Ưu điểm so với Kick Session:**
+- Bảo vệ session đang hoạt động
+- Ngăn chặn việc chiếm đoạt account
+
+### Q5: Làm sao phát hiện session không hoạt động?
+
+**Trả lời:**
+Server sử dụng **Heartbeat mechanism**:
+- Mỗi 30 giây, gọi `dao_sessions_find_stale_users(300)` để tìm session > 5 phút không hoạt động
+- Gửi thông báo timeout đến client
+- Đóng socket và cleanup session trong database
+
+### Q6: Điều gì xảy ra khi client mất mạng?
+
+**Trả lời:**
+- **< 5 phút:** Session vẫn active trong DB, user KHÔNG thể login từ nơi khác
+- **> 5 phút:** Heartbeat cleanup session, user có thể login lại
+- **Nếu đang chơi game:** Game state bị mất (QuickMode) hoặc bị eliminate (1vN)
+
+### Q7: Xử lý đăng nhập trùng lặp thế nào?
+
+**Trả lời:**
+Server áp dụng **Forbid Login Policy**:
+1. Kiểm tra `dao_sessions_count_active_by_user(user_id)`
+2. Nếu > 0: Trả về `AUTH_ERR_USER_ALREADY_LOGGED_IN`
+3. Client nhận lỗi và hiển thị thông báo phù hợp
+
+### Q8: Điều gì xảy ra khi host disconnect giữa game?
+
+**Trả lời:**
+- **Trước khi game bắt đầu:** Phòng bị xóa, tất cả member bị kick
+- **Trong game:** Host bị eliminate, game tiếp tục với player còn lại
+
+### Q9: Tại sao cần deactivate session trong database khi disconnect?
+
+**Trả lời:**
+Với Forbid Login Policy, nếu không deactivate session trong DB, user sẽ không thể login lại cho đến khi session hết hạn (5 phút). Deactivate ngay khi disconnect để user có thể login lại nhanh chóng.
+
+### Q10: Làm sao broadcast message đến tất cả player trong phòng?
+
+**Trả lời:**
+```c
+session_manager_broadcast_to_room(room_id, cmd, json, len)
+```
+- Duyệt tất cả sessions trong manager
+- Kiểm tra `session->room_id == target_room_id`
+- Gọi `protocol_send_response()` cho mỗi matching session
+
+### Q11: Có vấn đề race condition không?
+
+**Trả lời:**
+**Không có race condition** vì:
+- Single-threaded event loop
+- Mọi xử lý đều synchronous trong main thread
+- Timer callbacks và heartbeat check cũng chạy trong main thread
+
+### Q12: So sánh thiết kế authentication cũ và mới?
+
+**Trả lời:**
+| | Cũ (Kick Session) | Mới (Forbid Login) |
+|--|-------------------|-------------------|
+| Login mới | Thành công, kick cũ | Thất bại |
+| Session cũ | Bị terminate | Tiếp tục |
+| Bảo mật | Kém | Tốt hơn |
+| Timeout check | Không có | 5 phút |
+
+### Q13: Giải thích timer mechanism cho game timeout?
+
+**Trả lời:**
+- **Cấu trúc:** Mảng 100 `CallbackTimer` với polling
+- **Tạo timer:** `game_timer_create(15, session_id, callback, state)`
+- **Check expired:** `game_timer_check_and_run()` gọi mỗi 100ms trong main loop
+- **Callback:** Khi timeout, đánh dấu player chưa trả lời = 0 điểm
+
+### Q14: Packet quá lớn được xử lý thế nào?
+
+**Trả lời:**
+Nếu `expected_len > READ_BUFFER_SIZE (8KB)`:
+- Trả về -1 ngay lập tức
+- Server đóng connection
+- Bảo vệ khỏi DoS/memory exhaustion
+
+### Q15: Heartbeat hoạt động như thế nào?
+
+**Trả lời:**
+- **Chu kỳ kiểm tra:** 30 giây
+- **Timeout:** 5 phút không hoạt động
+- **Quy trình:** Query DB → Tìm stale users → Force disconnect → Cleanup DB
+- Không cần PING/PONG packet từ client
+
+---
+
+## Kết Luận
+
+Hệ thống sử dụng kiến trúc **event-driven** dựa trên **TCP + epoll** với **edge-triggered mode**. 
+
+**Các cải tiến mới:**
+- **Forbid Login Policy:** Bảo vệ session đang hoạt động, ngăn chặn đăng nhập trùng lặp
+- **Heartbeat System:** Tự động cleanup session không hoạt động sau 5 phút
+- **Session Deactivation:** Deactivate session trong DB khi disconnect để cho phép login lại nhanh
+
+Protocol layer xử lý tốt vấn đề **TCP stream reassembly** qua **stateful buffering**.

@@ -20,6 +20,8 @@
 #include "service/protocol.h"
 #include "service/quickmode_service.h"
 #include "service/friends_service.h"
+#include "service/reconnect_manager.h"
+#include "service/onevn_service.h"
 #include "dao/dao_sessions.h"
 #include "utils/timer.h"
 
@@ -220,24 +222,71 @@ int start_server(const char *bind_addr, const char *portstr) {
 					
 					if (sess && sess->user_id > 0) {
 						int64_t user_id = sess->user_id;
+						int64_t room_id = sess->room_id;
 						
-						// [FORBID-LOGIN] Deactivate database session on disconnect
-						extern int dao_sessions_deactivate_all_by_user(int64_t user_id);
-						int deactivated = dao_sessions_deactivate_all_by_user(user_id);
-						printf("[AUTH] Deactivated %d session(s) for user_id=%ld\n", 
-						       deactivated, user_id);
+						// [RECONNECT] Check if player is in a game and eligible for reconnect
+						int reconnect_eligible = 0;
+						if (sess->status == USER_STATUS_IN_GAME && room_id > 0) {
+							// Player is in a game - save state for potential reconnect
+							printf("[RECONNECT] Player disconnected during game, saving state for reconnect\n");
+							printf("[RECONNECT] user_id=%ld, room_id=%ld\n", user_id, room_id);
+							
+							// Save pending reconnect state (this creates a 30s timer)
+							PendingReconnect *pending = reconnect_save_state(
+								user_id, room_id, sess->access_token, RECONNECT_GAME_MODE_1VN);
+							
+							if (pending) {
+								reconnect_eligible = 1;  // Mark as reconnect eligible
+								
+								// Mark socket as closed but KEEP session in manager
+								sess->socket_fd = -1;
+								
+								// Mark player as disconnected (not eliminated yet)
+								onevn_mark_player_disconnected(room_id, user_id);
+								
+								// Broadcast to room that player is temporarily disconnected
+								char notify_buf[256];
+								snprintf(notify_buf, sizeof(notify_buf),
+									"{\"user_id\": %ld, \"event\": \"disconnected\", \"reconnect_timeout\": 30}",
+									user_id);
+								session_manager_broadcast_to_room(room_id, 0x0411, // CMD_NOTIFY_ROOM_UPDATE
+									notify_buf, strlen(notify_buf));
+								
+								printf("[RECONNECT] Session kept for reconnect, socket_fd=-1\n");
+								fflush(stdout);
+								
+								// DO NOT deactivate session or notify friends offline yet
+								// The reconnect timer callback will handle that if player doesn't reconnect
+							} else {
+								// Failed to save state, fall back to normal cleanup
+								printf("[RECONNECT] Failed to save state, doing normal cleanup\n");
+								dao_sessions_deactivate_all_by_user(user_id);
+								quickmode_cleanup_user(user_id);
+								friends_notify_status_change(user_id, "offline", 0);
+							}
+						} else {
+							// Not in a game - normal disconnect cleanup
+							printf("[AUTH] Normal disconnect (not in game), cleaning up\n");
+							
+							// [FORBID-LOGIN] Deactivate database session on disconnect
+							extern int dao_sessions_deactivate_all_by_user(int64_t user_id);
+							int deactivated = dao_sessions_deactivate_all_by_user(user_id);
+							printf("[AUTH] Deactivated %d session(s) for user_id=%ld\n", 
+							       deactivated, user_id);
+							
+							// Cleanup quickmode session if exists
+							quickmode_cleanup_user(user_id);
+							
+							// Notify friends offline
+							extern void friends_notify_status_change(int64_t user_id, const char *status, int64_t room_id);
+							friends_notify_status_change(user_id, "offline", 0);
+							printf("[FRIENDS] Notified: user_id=%ld is offline\n", user_id);
+						}
 						
-						// Cleanup quickmode session if exists
-						quickmode_cleanup_user(user_id);
-						
-						// Remove from active sessions FIRST
-						session_manager_remove(mgr, fd);
-						
-						// Design: 1 account = 1 device
-						// So when disconnect -> user is truly offline -> notify friends
-						extern void friends_notify_status_change(int64_t user_id, const char *status, int64_t room_id);
-						friends_notify_status_change(user_id, "offline", 0);
-						printf("[FRIENDS] Notified: user_id=%ld is offline\n", user_id);
+						// Only remove session if NOT waiting for reconnect
+						if (!reconnect_eligible) {
+							session_manager_remove(mgr, fd);
+						}
 					} else {
 						session_manager_remove(mgr, fd);
 					}

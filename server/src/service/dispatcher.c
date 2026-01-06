@@ -5,6 +5,7 @@
 #include "service/stats_service.h"
 #include "service/friends_service.h"
 #include "service/onevn_service.h"
+#include "service/reconnect_manager.h"
 #include "dao/dao_friends.h"
 #include "dao/dao_chat.h"
 #include "dao/dao_rooms.h"
@@ -312,6 +313,12 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                     char response[64];
                     snprintf(response, sizeof(response), "{\"status\": \"pong\"}");
                     protocol_send_response(sess, CMD_RES_PING, response, strlen(response));
+                } break;
+                case CMD_REQ_RECONNECT: {
+                    // [RECONNECT] Client attempting to reconnect after disconnect
+                    printf("[DISPATCHER] Received CMD_REQ_RECONNECT\n");
+                    fflush(stdout);
+                    reconnect_handle_request(sess, payload, payload_len);
                 } break;
                 default:
                     protocol_send_error(sess, cmd, "UNKNOWN_SYSTEM_CMD");
