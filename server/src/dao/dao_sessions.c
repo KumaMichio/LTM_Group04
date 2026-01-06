@@ -304,3 +304,99 @@ int dao_sessions_cleanup_all_on_restart() {
     printf("[INIT] Cleaned up %d stale session(s) from previous server instance\n", affected);
     return affected;
 }
+
+// [HEARTBEAT] Find stale user IDs (last_heartbeat > stale_seconds ago)
+int dao_sessions_find_stale_users(int stale_seconds, int64_t **out_user_ids) {
+    if (!db_is_ok()) return -1;
+
+    const char *sql =
+        "SELECT user_id FROM user_sessions "
+        "WHERE expires_at > NOW() "
+        "  AND EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) > $1;";
+
+    char stale_str[32];
+    snprintf(stale_str, sizeof(stale_str), "%d", stale_seconds);
+
+    const char *params[1] = { stale_str };
+    int paramLengths[1]   = { (int)strlen(stale_str) };
+    int paramFormats[1]   = { 0 };
+
+    PGresult *res = PQexecParams(db_conn,
+                                 sql,
+                                 1,
+                                 NULL,
+                                 params,
+                                 paramLengths,
+                                 paramFormats,
+                                 0);
+
+    if (PQresultStatus(res) != PGRES_TUPLES_OK) {
+        db_log_error(res, "dao_sessions_find_stale_users failed");
+        PQclear(res);
+        return -1;
+    }
+
+    int count = PQntuples(res);
+    if (count == 0) {
+        PQclear(res);
+        *out_user_ids = NULL;
+        return 0;
+    }
+
+    // Allocate array for user_ids
+    int64_t *user_ids = malloc(count * sizeof(int64_t));
+    if (!user_ids) {
+        PQclear(res);
+        return -1;
+    }
+
+    for (int i = 0; i < count; i++) {
+        user_ids[i] = atoll(PQgetvalue(res, i, 0));
+    }
+
+    PQclear(res);
+    *out_user_ids = user_ids;
+    return count;
+}
+
+// [HEARTBEAT] Cleanup stale sessions (last_heartbeat > stale_seconds ago)
+int dao_sessions_cleanup_stale(int stale_seconds) {
+    if (!db_is_ok()) return -1;
+
+    const char *sql =
+        "UPDATE user_sessions "
+        "SET expires_at = NOW() "
+        "WHERE expires_at > NOW() "
+        "  AND EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) > $1;";
+
+    char stale_str[32];
+    snprintf(stale_str, sizeof(stale_str), "%d", stale_seconds);
+
+    const char *params[1] = { stale_str };
+    int paramLengths[1]   = { (int)strlen(stale_str) };
+    int paramFormats[1]   = { 0 };
+
+    PGresult *res = PQexecParams(db_conn,
+                                 sql,
+                                 1,
+                                 NULL,
+                                 params,
+                                 paramLengths,
+                                 paramFormats,
+                                 0);
+
+    if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+        db_log_error(res, "dao_sessions_cleanup_stale failed");
+        PQclear(res);
+        return -1;
+    }
+
+    int affected = atoi(PQcmdTuples(res));
+    PQclear(res);
+
+    if (affected > 0) {
+        printf("[HEARTBEAT] Cleaned up %d stale session(s) (no activity for %d seconds)\n", 
+               affected, stale_seconds);
+    }
+    return affected;
+}

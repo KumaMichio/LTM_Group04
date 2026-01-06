@@ -26,6 +26,72 @@ ApplicationWindow {
     // Style Guide: Background color
     color: "#2E1A47"
     
+    // [HEARTBEAT] Handle disconnect event from server
+    Connections {
+        target: networkClient
+        
+        function onDisconnected() {
+            console.log("[QML] Disconnected from server - showing dialog")
+            disconnectDialog.open()
+        }
+    }
+    
+    // Disconnect notification dialog
+    Dialog {
+        id: disconnectDialog
+        title: "Mất kết nối"
+        modal: true
+        anchors.centerIn: parent
+        width: 400
+        
+        contentItem: ColumnLayout {
+            spacing: 20
+            
+            Text {
+                text: "Phiên làm việc đã hết hạn do không hoạt động.\nVui lòng đăng nhập lại."
+                color: "#FFFFFF"
+                font.pixelSize: 16
+                wrapMode: Text.WordWrap
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+            }
+            
+            Button {
+                text: "Đăng nhập lại"
+                Layout.alignment: Qt.AlignHCenter
+                
+                background: Rectangle {
+                    color: parent.pressed ? "#7B3FF2" : "#9B59D0"
+                    radius: 8
+                    implicitWidth: 150
+                    implicitHeight: 40
+                }
+                
+                contentItem: Text {
+                    text: parent.text
+                    color: "#FFFFFF"
+                    font.pixelSize: 14
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                
+                onClicked: {
+                    disconnectDialog.close()
+                    stackView.clear()
+                    stackView.push("Signin.qml", {"stackView": stackView})
+                }
+            }
+        }
+        
+        background: Rectangle {
+            color: "#3D2555"
+            radius: 10
+            border.color: "#9B59D0"
+            border.width: 2
+        }
+    }
+    
     StackView {
         id: stackView
         anchors.fill: parent

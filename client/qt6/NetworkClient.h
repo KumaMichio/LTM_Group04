@@ -135,7 +135,8 @@ private:
     QTcpSocket *m_socket;
     QString m_token;
     bool m_loggedIn;
-    quint16 m_userId;  // User ID from login
+        bool m_isLoggingOut;  // Flag to prevent showing disconnect popup on intentional logout
+        quint16 m_userId;  // User ID from login
     QByteArray m_buffer;  // Buffer for incomplete packets
     
     // Duplicate prevention tracking for questions

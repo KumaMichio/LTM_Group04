@@ -5,10 +5,10 @@
 #include "service/stats_service.h"
 #include "service/friends_service.h"
 #include "service/onevn_service.h"
-// Nếu tách riêng friends/chat/room:
 #include "dao/dao_friends.h"
 #include "dao/dao_chat.h"
 #include "dao/dao_rooms.h"
+#include "dao/dao_sessions.h"
 #include "service/protocol.h"
 #include "service/session_manager.h"
 #include "utils/json.h"
@@ -16,6 +16,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 
 
@@ -23,6 +24,30 @@
 void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *payload, uint32_t payload_len) {
     uint8_t major = (cmd & 0xFF00) >> 8;
     // uint8_t minor = cmd & 0x00FF;
+
+    // [HEARTBEAT] Check if session is expired BEFORE processing any command
+    if (sess && sess->user_id > 0 && cmd != CMD_REQ_LOGIN && cmd != CMD_RES_LOGIN) {
+        UserSession db_sess;
+        if (dao_sessions_find_by_token(sess->access_token, &db_sess) == 0) {
+            // Session found in DB
+            time_t now = time(NULL);
+            if (db_sess.expires_at <= now) {
+                // Session expired
+                fprintf(stderr, "[AUTH] Session expired for user_id=%ld, cmd=0x%04x\n", 
+                        sess->user_id, cmd);
+                protocol_send_error(sess, cmd, "Session_Expired");
+                return;
+            }
+            // Session valid - update heartbeat to keep session alive
+            dao_sessions_touch(sess->access_token, 3600); // 1 hour TTL
+        } else {
+            // Session not found in DB - this shouldn't happen, but log it
+            fprintf(stderr, "[AUTH] Session token not found in DB for user_id=%ld, cmd=0x%04x\n", 
+                    sess->user_id, cmd);
+            protocol_send_error(sess, cmd, "Session_Invalid");
+            return;
+        }
+    }
 
     switch (major) {
         case 0x01: // Auth
@@ -276,6 +301,20 @@ void dispatcher_handle_packet(ClientSession *sess, uint16_t cmd, const char *pay
                     break;
                 default:
                     protocol_send_error(sess, cmd, "UNKNOWN_STATS_CMD");
+            }
+            break;
+
+        case 0x08: // System / Connection
+            switch (cmd) {
+                case CMD_REQ_PING: {
+                    // [HEARTBEAT] Client send PING -> Server respond PONG
+                    // This also updates last_heartbeat (already done above)
+                    char response[64];
+                    snprintf(response, sizeof(response), "{\"status\": \"pong\"}");
+                    protocol_send_response(sess, CMD_RES_PING, response, strlen(response));
+                } break;
+                default:
+                    protocol_send_error(sess, cmd, "UNKNOWN_SYSTEM_CMD");
             }
             break;
 

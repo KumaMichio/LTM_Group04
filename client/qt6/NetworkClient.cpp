@@ -92,6 +92,7 @@ NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent)
     , m_socket(new QTcpSocket(this))
     , m_loggedIn(false)
+        , m_isLoggingOut(false)
     , m_userId(0)
     , m_lastQuestionSessionId(0)
     , m_lastQuestionRound(0)
@@ -231,6 +232,8 @@ void NetworkClient::sendLogin(const QString &username, const QString &password)
 
 void NetworkClient::sendLogout()
 {
+    m_isLoggingOut = true;  // Set flag before logout to prevent disconnect popup
+    
     QJsonObject obj;  // Empty object
     QJsonDocument doc(obj);
     QByteArray json = doc.toJson(QJsonDocument::Compact);
@@ -1100,7 +1103,13 @@ void NetworkClient::onSocketStateChanged(QAbstractSocket::SocketState state)
             onReadyRead();
         }
         
-        emit disconnected();
+            // Only emit disconnected signal if NOT intentional logout
+            if (!m_isLoggingOut) {
+                emit disconnected();
+            } else {
+                qDebug() << "Intentional logout - not showing disconnect popup";
+                m_isLoggingOut = false;  // Reset flag
+            }
         
         // Only clear login state if we didn't successfully login
         // (server closes connection after response, which is normal)

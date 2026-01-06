@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <errno.h>
+#include <time.h>
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <sys/types.h>
@@ -19,6 +20,7 @@
 #include "service/protocol.h"
 #include "service/quickmode_service.h"
 #include "service/friends_service.h"
+#include "dao/dao_sessions.h"
 #include "utils/timer.h"
 
 static volatile int running = 1;
@@ -108,10 +110,45 @@ int start_server(const char *bind_addr, const char *portstr) {
 	       bind_addr ? bind_addr : "0.0.0.0", portstr);
 
 	struct epoll_event events[MAX_EPOLL_EVENTS];
+	time_t last_stale_cleanup = time(NULL);
+	const int STALE_CLEANUP_INTERVAL = 30;  // Run cleanup every 30 seconds
+	const int STALE_SESSION_TIMEOUT = 300;  // Mark sessions stale if no heartbeat for 5 minutes
 
 	while (running) {
 		// Check and run expired game timers (for 1vN mode timeout handling)
 		game_timer_check_and_run();
+		
+		// [HEARTBEAT] Periodic cleanup of stale sessions
+		time_t now = time(NULL);
+		if (now - last_stale_cleanup >= STALE_CLEANUP_INTERVAL) {
+			// Find stale users first
+			int64_t *stale_user_ids = NULL;
+			int stale_count = dao_sessions_find_stale_users(STALE_SESSION_TIMEOUT, &stale_user_ids);
+			
+			if (stale_count > 0 && stale_user_ids) {
+				// Force disconnect each stale user
+				for (int i = 0; i < stale_count; i++) {
+					int64_t user_id = stale_user_ids[i];
+					ClientSession *sess = session_manager_get_by_user_id(user_id);
+					
+					if (sess) {
+						printf("[HEARTBEAT] Force disconnecting stale session: user_id=%ld (no activity for %d seconds)\n",
+						       user_id, STALE_SESSION_TIMEOUT);
+						
+						// Send error notification before closing
+						protocol_send_error(sess, 0x0803, "Session_Timeout");
+						
+						// Close socket to trigger client disconnect
+						close(sess->socket_fd);
+					}
+				}
+				free(stale_user_ids);
+			}
+			
+			// Now cleanup stale sessions in database
+			dao_sessions_cleanup_stale(STALE_SESSION_TIMEOUT);
+			last_stale_cleanup = now;
+		}
 		
 		int nfds = epoll_wait(session_manager_get_epoll_fd(mgr), events, MAX_EPOLL_EVENTS, 100);
 		
@@ -179,27 +216,31 @@ int start_server(const char *bind_addr, const char *portstr) {
 
 				if (result < 0) {
 					// Error or disconnect
-					printf("Client disconnected (fd=%d)\n", fd);
-					// Notify friends that user is offline (before removing session)
+					printf("Client disconnected (fd=%d, user_id=%ld)\n", fd, sess ? sess->user_id : 0);
+					
 					if (sess && sess->user_id > 0) {
+						int64_t user_id = sess->user_id;
+						
 						// [FORBID-LOGIN] Deactivate database session on disconnect
 						extern int dao_sessions_deactivate_all_by_user(int64_t user_id);
-						int deactivated = dao_sessions_deactivate_all_by_user(sess->user_id);
-						if (deactivated >= 0) {
-							printf("[AUTH] Client disconnect: Deactivated %d session(s) for user_id=%ld\n", 
-							       deactivated, sess->user_id);
-						} else {
-							printf("[WARN] Failed to deactivate sessions on disconnect for user_id=%ld\n", 
-							       sess->user_id);
-						}
+						int deactivated = dao_sessions_deactivate_all_by_user(user_id);
+						printf("[AUTH] Deactivated %d session(s) for user_id=%ld\n", 
+						       deactivated, user_id);
 						
-						// Import friends_service to notify friends
-						extern void friends_notify_status_change(int64_t user_id, const char *status, int64_t room_id);
-						friends_notify_status_change(sess->user_id, "offline", 0);
 						// Cleanup quickmode session if exists
-						quickmode_cleanup_user(sess->user_id);
+						quickmode_cleanup_user(user_id);
+						
+						// Remove from active sessions FIRST
+						session_manager_remove(mgr, fd);
+						
+						// Design: 1 account = 1 device
+						// So when disconnect -> user is truly offline -> notify friends
+						extern void friends_notify_status_change(int64_t user_id, const char *status, int64_t room_id);
+						friends_notify_status_change(user_id, "offline", 0);
+						printf("[FRIENDS] Notified: user_id=%ld is offline\n", user_id);
+					} else {
+						session_manager_remove(mgr, fd);
 					}
-					session_manager_remove(mgr, fd);
 					continue;
 				}
 

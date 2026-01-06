@@ -139,7 +139,7 @@ void auth_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint3
                 }
                 
                 // Update status to offline
-                session_manager_update_status(user_id, USER_STATUS_ONLINE, 0);  // Will be removed from session manager
+                session_manager_update_status(user_id, USER_STATUS_OFFLINE, 0);
                 
                 // Cleanup game sessions (QuickMode)
                 quickmode_cleanup_user(user_id);
