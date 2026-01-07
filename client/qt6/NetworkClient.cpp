@@ -88,12 +88,18 @@
 #define CMD_REQ_LIST_ROOMS  0x0405
 #define CMD_RES_LIST_ROOMS  0x0406
 
+// Reconnect commands
+#define CMD_REQ_RECONNECT  0x0804
+#define CMD_RES_RECONNECT  0x0805
+
 NetworkClient::NetworkClient(QObject *parent)
     : QObject(parent)
     , m_socket(new QTcpSocket(this))
     , m_loggedIn(false)
-        , m_isLoggingOut(false)
+    , m_isLoggingOut(false)
     , m_userId(0)
+    , m_currentRoomId(0)
+    , m_isInGame(false)
     , m_lastQuestionSessionId(0)
     , m_lastQuestionRound(0)
     , m_lastQuestionId(0)
@@ -355,6 +361,49 @@ void NetworkClient::sendSubmitAnswer1VN(qint64 sessionId, int round, const QStri
     QByteArray json = doc.toJson(QJsonDocument::Compact);
 
     sendPacket(CMD_REQ_SUBMIT_ANSWER_1VN, m_userId, json);
+}
+
+// Reconnect functionality
+void NetworkClient::sendReconnect()
+{
+    if (!isConnected()) {
+        qDebug() << "[RECONNECT] Cannot send reconnect: not connected to server";
+        emit errorOccurred("Chưa kết nối đến server");
+        return;
+    }
+
+    if (m_userId == 0 || m_token.isEmpty()) {
+        qDebug() << "[RECONNECT] Cannot reconnect: no saved credentials";
+        emit reconnectResponse(false, 0, 0, 0, 0, "NO_SAVED_CREDENTIALS");
+        return;
+    }
+
+    QJsonObject obj;
+    obj["user_id"] = static_cast<qint64>(m_userId);
+    obj["access_token"] = m_token;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    qDebug() << "[RECONNECT] Sending reconnect request: user_id=" << m_userId << "token=" << m_token;
+    sendPacket(CMD_REQ_RECONNECT, m_userId, json);
+}
+
+void NetworkClient::setInGameState(qint64 roomId, bool inGame)
+{
+    m_currentRoomId = roomId;
+    m_isInGame = inGame;
+    qDebug() << "[RECONNECT] Game state updated: roomId=" << roomId << "inGame=" << inGame;
+}
+
+bool NetworkClient::isInGame() const
+{
+    return m_isInGame;
+}
+
+qint64 NetworkClient::getCurrentRoomId() const
+{
+    return m_currentRoomId;
 }
 
 void NetworkClient::onReadyRead()
@@ -1050,6 +1099,36 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
             }
             break;
 
+        // Reconnect response handling
+        case CMD_RES_RECONNECT:
+            qDebug() << "=== CMD_RES_RECONNECT received ===" << obj;
+            if (obj.contains("error")) {
+                QString errorMsg = obj["error"].toString();
+                qDebug() << "[RECONNECT] Reconnect failed:" << errorMsg;
+                emit reconnectResponse(false, 0, 0, 0, 0, errorMsg);
+            } else if (obj.contains("status") && obj["status"].toString() == "reconnected") {
+                qint64 roomId = obj["room_id"].toVariant().toLongLong();
+                int score = obj["score"].toInt();
+                int currentRound = obj["current_round"].toInt();
+                int consecutiveCorrect = obj["consecutive_correct"].toInt();
+                int timeRemaining = obj["time_remaining"].toInt();
+                
+                qDebug() << "[RECONNECT] Reconnect successful: roomId=" << roomId 
+                         << "score=" << score << "round=" << currentRound 
+                         << "timeRemaining=" << timeRemaining;
+                
+                // Restore game state
+                m_isInGame = true;
+                m_currentRoomId = roomId;
+                m_loggedIn = true;
+                
+                emit reconnectResponse(true, roomId, score, currentRound, timeRemaining, "");
+            } else {
+                qDebug() << "[RECONNECT] Unexpected reconnect response:" << obj;
+                emit reconnectResponse(false, 0, 0, 0, 0, "UNEXPECTED_RESPONSE");
+            }
+            break;
+
         default:
             qDebug() << "Unknown command:" << QString::number(cmd, 16);
             break;
@@ -1103,13 +1182,23 @@ void NetworkClient::onSocketStateChanged(QAbstractSocket::SocketState state)
             onReadyRead();
         }
         
-            // Only emit disconnected signal if NOT intentional logout
-            if (!m_isLoggingOut) {
-                emit disconnected();
-            } else {
-                qDebug() << "Intentional logout - not showing disconnect popup";
-                m_isLoggingOut = false;  // Reset flag
-            }
+        // Check if we were in a game - need to trigger reconnect flow
+        if (m_isInGame && m_loggedIn && !m_isLoggingOut) {
+            qDebug() << "[RECONNECT] Disconnect detected during game! userId=" << m_userId 
+                     << "roomId=" << m_currentRoomId;
+            // Emit reconnectNeeded signal - QML will handle the reconnect UI
+            emit reconnectNeeded(static_cast<qint64>(m_userId), m_token, m_currentRoomId);
+            // Don't emit regular disconnected signal
+            return;
+        }
+        
+        // Only emit disconnected signal if NOT intentional logout
+        if (!m_isLoggingOut) {
+            emit disconnected();
+        } else {
+            qDebug() << "Intentional logout - not showing disconnect popup";
+            m_isLoggingOut = false;  // Reset flag
+        }
         
         // Only clear login state if we didn't successfully login
         // (server closes connection after response, which is normal)

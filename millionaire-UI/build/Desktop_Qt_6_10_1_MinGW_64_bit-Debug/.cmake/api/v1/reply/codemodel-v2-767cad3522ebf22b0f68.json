@@ -1,0 +1,79 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-4ec745e3f9dae375bb42.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.16"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "millionaire-client",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "millionaire-client::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-millionaire-client-Debug-c4a4da201ed933adbbf2.json",
+					"name" : "millionaire-client",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "millionaire-client_autogen::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-millionaire-client_autogen-Debug-7f3acd78f3228a920241.json",
+					"name" : "millionaire-client_autogen",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "millionaire-client_autogen_timestamp_deps::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-millionaire-client_autogen_timestamp_deps-Debug-03bd498d11d48c72f18e.json",
+					"name" : "millionaire-client_autogen_timestamp_deps",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "D:/code/Who'sTheMillionare/LTM_Group04/millionaire-client/build/Desktop_Qt_6_10_1_MinGW_64_bit-Debug",
+		"source" : "D:/code/Who'sTheMillionare/LTM_Group04/millionaire-client"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 7
+	}
+}

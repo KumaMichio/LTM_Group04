@@ -1644,6 +1644,11 @@ Component {
             showingScoreMessage = false
             queuedQuestion = null
             waitingForNextQuestion = false
+            
+            // [RECONNECT] Mark that we are now in-game for reconnect tracking
+            networkClient.setInGameState(gameRoomId, true)
+            console.log("[RECONNECT] Game started, setInGameState(" + gameRoomId + ", true)")
+            
             screenStack.replace(gamePlayingScreen)
         }
 
@@ -1703,6 +1708,11 @@ Component {
 
         function onOneVNGameOver1VN(winnerId, leaderboard) {
             questionTimer.stop()
+            
+            // [RECONNECT] Game is over, no longer in-game
+            networkClient.setInGameState(0, false)
+            console.log("[RECONNECT] Game over, setInGameState(0, false)")
+            
             membersList = []
             for (var i = 0; i < leaderboard.length; i++) {
                 var player = leaderboard[i]
@@ -1926,6 +1936,11 @@ Component {
 
         onAccepted: {
             toastMessage.show("Đang rời khỏi trận đấu...", "#FF9800")
+            
+            // [RECONNECT] Leaving room, no longer in-game
+            networkClient.setInGameState(0, false)
+            console.log("[RECONNECT] Left room, setInGameState(0, false)")
+            
             networkClient.sendLeaveRoom(roomId)
 
             questionTimer.stop()

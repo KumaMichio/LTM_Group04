@@ -1,0 +1,526 @@
+# Tóm Tắt Ngoại Lệ Mạng và Thiết Kế Hệ Thống
+
+## Dự Án: Who's The Millionaire - Nhóm LTM 04
+
+Tài liệu này cung cấp phân tích toàn diện về kiến trúc mạng, thiết lập socket, xử lý ngoại lệ và các quyết định thiết kế trong server game trắc nghiệm "Who's The Millionaire" đa người chơi.
+
+---
+
+## 1. Thiết Lập Socket & Mạng
+
+### 1.1 Tạo Server Socket
+
+**Loại:** TCP (SOCK_STREAM)  
+**Chế độ chặn:** Non-blocking (không chặn)  
+**Multiplexing I/O:** Epoll chế độ edge-triggered (`EPOLLIN | EPOLLET`)
+
+Server tạo TCP socket sử dụng `getaddrinfo()` với `AF_UNSPEC` (hỗ trợ cả IPv4 và IPv6) và cờ `AI_PASSIVE` để bind server:
+
+```c
+// server/src/service/server.c
+hints.ai_family = AF_UNSPEC;
+hints.ai_socktype = SOCK_STREAM;
+hints.ai_flags = AI_PASSIVE;
+```
+
+**Tùy chọn Socket:**
+- `SO_REUSEADDR` được bật để cho phép khởi động lại server nhanh chóng
+- Chế độ non-blocking được thiết lập qua `fcntl(fd, F_SETFL, flags | O_NONBLOCK)`
+
+### 1.2 Chấp Nhận Kết Nối Client
+
+Server sử dụng epoll edge-triggered, yêu cầu vòng lặp để chấp nhận tất cả kết nối đang chờ:
+
+```c
+while (1) {
+    int client_fd = accept(sockfd, (struct sockaddr *)&cli_addr, &cli_len);
+    if (client_fd < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            break; // Không còn kết nối đang chờ
+        }
+        // Xử lý lỗi
+    }
+    // Thiết lập non-blocking và thêm vào session manager
+}
+```
+
+**Luồng Xử Lý Kết Nối:**
+1. Chấp nhận kết nối ở chế độ non-blocking
+2. Thiết lập client socket thành non-blocking
+3. Tạo cấu trúc `ClientSession`
+4. Thêm session vào `SessionManager`
+5. Đăng ký client fd với epoll cho sự kiện đọc
+
+### 1.3 Xử Lý I/O
+
+**Mô hình:** Vòng lặp sự kiện đơn luồng với I/O non-blocking
+
+Vòng lặp sự kiện chính sử dụng `epoll_wait()` với timeout 100ms để polling:
+
+```c
+while (running) {
+    game_timer_check_and_run();  // Kiểm tra timer game
+    int nfds = epoll_wait(epoll_fd, events, MAX_EPOLL_EVENTS, 100);
+    // Xử lý các sự kiện
+}
+```
+
+**Đặc điểm I/O chính:**
+- **Chế độ edge-triggered**: Yêu cầu đọc hết dữ liệu có sẵn cho mỗi sự kiện
+- **Buffer đọc từng phần**: Mỗi `ClientSession` duy trì buffer đọc 8KB
+- **Đọc theo protocol**: Xử lý được phân mảnh TCP stream
+
+### 1.4 Phát Hiện Ngắt Kết Nối
+
+**Cơ chế phát hiện:**
+
+| Cơ chế | Điều kiện | Ý nghĩa |
+|--------|-----------|---------|
+| `recv() = 0` | Nhận được TCP FIN | Ngắt kết nối có kiểm soát |
+| `recv() < 0` với `errno != EAGAIN` | Lỗi socket | Ngắt kết nối bắt buộc |
+| Packet quá lớn | `expected_len > READ_BUFFER_SIZE` | Lỗi protocol, coi như ngắt kết nối |
+
+**Xử lý ngắt kết nối:**
+```c
+if (result < 0) {
+    // Thông báo bạn bè về trạng thái offline
+    friends_notify_status_change(sess->user_id, "offline", 0);
+    // Dọn dẹp session quickmode
+    quickmode_cleanup_user(sess->user_id);
+    // Xóa khỏi session manager
+    session_manager_remove(mgr, fd);
+}
+```
+
+---
+
+## 2. Quản Lý Session & Tài Khoản
+
+### 2.1 Liên Kết Session-Socket
+
+Mỗi kết nối TCP được gắn với một cấu trúc `ClientSession`:
+
+```c
+typedef struct ClientSession {
+    int socket_fd;              // File descriptor của socket
+    int64_t user_id;            // 0 nếu chưa đăng nhập
+    char access_token[65];      // Token xác thực
+    int64_t room_id;            // ID phòng hiện tại (0 nếu không trong phòng)
+    UserStatus status;          // ONLINE, IN_WAITING_ROOM, IN_GAME
+    char read_buffer[8192];     // Buffer đọc từng phần
+    size_t read_buffer_len;
+    size_t expected_len;
+    uint16_t pending_cmd;
+} ClientSession;
+```
+
+**Vòng đời Session:**
+1. Kết nối socket → `ClientSession` được tạo (ẩn danh)
+2. Đăng nhập → `user_id` và `access_token` được gán
+3. Tham gia phòng → `room_id` và `status` được cập nhật
+4. Ngắt kết nối → Session bị xóa, thực hiện dọn dẹp
+
+### 2.2 Chính Sách Đăng Nhập Đa Phiên
+
+**Chính sách: Một Session cho mỗi Tài Khoản (Đăng Nhập Sau Thắng)**
+
+Khi người dùng đăng nhập trong khi đã có session hoạt động, server:
+
+1. Phát hiện session hiện có cho cùng `user_id`
+2. Gửi `CMD_RES_LOGOUT` với lý do `"NEW_LOGIN_DETECTED"` cho session cũ
+3. Dọn dẹp trạng thái game (`quickmode_cleanup_user`)
+4. Đóng socket cũ bắt buộc qua `shutdown()` + `close()`
+5. Thiết lập session mới
+
+```c
+ClientSession *old_sess = session_manager_get_by_user_id(us.user_id);
+if (old_sess && old_sess != sess) {
+    quickmode_cleanup_user(us.user_id);
+    protocol_send_response(old_sess, CMD_RES_LOGOUT,
+        "{\"reason\":\"NEW_LOGIN_DETECTED\"}", 35);
+    shutdown(old_sess->socket_fd, SHUT_RDWR);
+    close(old_sess->socket_fd);
+}
+```
+
+### 2.3 Các Trạng Thái Session
+
+```c
+typedef enum {
+    USER_STATUS_ONLINE = 0,          // Trong sảnh chờ
+    USER_STATUS_IN_WAITING_ROOM = 1, // Trong phòng chờ
+    USER_STATUS_IN_GAME = 2          // Đang chơi game
+} UserStatus;
+```
+
+Thay đổi trạng thái kích hoạt thông báo bạn bè qua `friends_notify_status_change()`.
+
+---
+
+## 3. Logic Phòng & Game Liên Quan Đến Sự Kiện Mạng
+
+### 3.1 Vòng Đời Phòng
+
+| Trạng thái | Mô tả | Chuyển đổi |
+|------------|-------|------------|
+| `ROOM_STATUS_WAITING` | Phòng được tạo, đang nhận người chơi | → STARTING, → FINISHED (chủ phòng rời) |
+| `ROOM_STATUS_STARTING` | Game đang bắt đầu | → IN_PROGRESS |
+| `ROOM_STATUS_IN_PROGRESS` | Game đang diễn ra | → FINISHED |
+| `ROOM_STATUS_FINISHED` | Game kết thúc | (trạng thái cuối) |
+
+### 3.2 Trách Nhiệm Của Chủ Phòng
+
+- Chỉ chủ phòng mới có thể bắt đầu game (`CMD_REQ_START_GAME`)
+- Chủ phòng rời trước khi game bắt đầu → phòng bị xóa, tất cả thành viên được thông báo
+- Chủ phòng được xác minh qua kiểm tra `dao_rooms_get_owner()`
+
+### 3.3 Các Tình Huống Ngắt Kết Nối
+
+#### Chủ Phòng Ngắt Kết Nối Trong Game (IN_PROGRESS/STARTING)
+
+**Hành vi:** Game tiếp tục; chủ phòng bị đánh dấu là bị loại
+
+```c
+if (room_status == ROOM_STATUS_IN_PROGRESS || room_status == ROOM_STATUS_STARTING) {
+    onevn_eliminate_player_by_room(room_id, sess->user_id);
+    dao_rooms_mark_eliminated(room_id, sess->user_id);
+    session_manager_set_room(sess, 0);
+}
+```
+
+#### Chủ Phòng Ngắt Kết Nối Trước Game (WAITING)
+
+**Hành vi:** Phòng bị xóa, tất cả thành viên được thông báo
+
+```c
+if (is_owner && room_status == ROOM_STATUS_WAITING) {
+    dao_rooms_delete(room_id);
+    session_manager_broadcast_to_room(room_id, CMD_NOTIFY_ROOM_CLOSED,
+        "{\"room_id\": X, \"reason\": \"owner_left\"}", ...);
+}
+```
+
+#### Người Chơi Thường Ngắt Kết Nối
+
+- **Trong Game:** Bị đánh dấu loại, không thể nhận câu hỏi hoặc trả lời nữa
+- **Trước Game:** Đơn giản bị xóa khỏi phòng, các thành viên được thông báo
+
+### 3.4 Logic Timeout và Dọn Dẹp
+
+**Timeout Vòng Game (Chế độ 1vN):**
+
+Cơ chế timer được triển khai trong `utils/timer.c`:
+
+```c
+// Timeout 15 giây mỗi câu hỏi
+state->timer_id = game_timer_create(15, state->session_id, 
+                                    round_timeout_callback, state);
+```
+
+**Xử lý Timeout:**
+1. Tất cả người chơi chưa trả lời nhận 0 điểm cho vòng đó
+2. Chuỗi trả lời đúng liên tiếp bị reset
+3. Bảng xếp hạng được broadcast đến tất cả người chơi
+4. Câu hỏi tiếp theo được gửi sau 3 giây delay
+
+**Tần suất kiểm tra Timer:** Mỗi 100ms trong vòng lặp sự kiện chính qua `game_timer_check_and_run()`
+
+---
+
+## 4. Cơ Chế Kết Nối Lại
+
+### 4.1 Trạng Thái Hỗ Trợ Kết Nối Lại
+
+**Triển Khai Hiện Tại: Không Hỗ Trợ Kết Nối Lại**
+
+Codebase định nghĩa các mã lệnh kết nối lại:
+```c
+#define CMD_REQ_RECONNECT 0x0804
+#define CMD_RES_RECONNECT 0x0805
+```
+
+Tuy nhiên, **các lệnh này chưa được triển khai trong dispatcher**.
+
+### 4.2 Bảo Lưu Trạng Thái
+
+**Trạng thái KHÔNG được bảo lưu cho kết nối lại:**
+
+- Session QuickMode bị dọn dẹp khi ngắt kết nối
+- Trạng thái game 1vN đánh dấu người chơi bị loại
+- Session bị xóa khỏi `SessionManager`
+
+### 4.3 Điều Kiện Kết Nối Lại (Giả Định)
+
+Nếu kết nối lại được triển khai, sẽ cần:
+- Khớp `user_id` + `access_token` hợp lệ
+- Session chưa bị dọn dẹp (trong cửa sổ timeout)
+- Game vẫn đang diễn ra
+- Người chơi chưa bị loại
+
+---
+
+## 5. Các Tình Huống Lỗi & Xử Lý
+
+### 5.1 Client Ngắt Kết Nối Đột Ngột
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Lỗi mạng, client crash, TCP RST |
+| **Phát hiện** | `recv() <= 0` trong `client_session_read_packet()` |
+| **Xử lý phía Server** | Thông báo bạn bè (offline), dọn dẹp trạng thái game, xóa session |
+| **Xử lý phía Client** | Không áp dụng (client đã ngắt kết nối) |
+
+### 5.2 Timeout Mạng (Vòng Game)
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Người chơi không phản hồi trong 15 giây |
+| **Phát hiện** | `game_timer_check_and_run()` kích hoạt callback |
+| **Xử lý phía Server** | Đặt điểm=0 cho vòng, reset chuỗi liên tiếp, gửi response `timeout:true` |
+| **Xử lý phía Client** | Nhận CMD_RES_SUBMIT_ANSWER_1VN với `"timeout":true` |
+
+### 5.3 Packet Không Hợp Lệ
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Header protocol sai định dạng, lệnh không xác định |
+| **Phát hiện** | Case default trong switch của dispatcher, kiểm tra packet quá cỡ |
+| **Xử lý phía Server** | `protocol_send_error()` với mã lỗi, có thể đóng kết nối nếu quá cỡ |
+| **Xử lý phía Client** | Nhận response lỗi, hiển thị thông báo lỗi |
+
+```c
+// Xử lý lệnh không xác định
+default:
+    protocol_send_error(sess, cmd, "UNKNOWN_CMD");
+```
+
+### 5.4 Tin Nhắn Nửa Chừng (Vấn Đề TCP Stream)
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Phân mảnh TCP, đọc từng phần từ socket |
+| **Phát hiện** | `read_buffer_len < expected_len` |
+| **Xử lý phía Server** | Trả về 0 (PARTIAL), chờ thêm dữ liệu |
+| **Xử lý phía Client** | Không áp dụng (trong suốt với client) |
+
+```c
+// Xử lý packet từng phần trong client_session_read_packet()
+if (sess->read_buffer_len < sess->expected_len) {
+    return 0;  // Cần thêm dữ liệu
+}
+```
+
+**Header Protocol:**
+```c
+typedef struct {
+    uint16_t cmd;      // Mã lệnh (network byte order)
+    uint16_t user_id;  // ID người dùng (bị cắt ngắn)
+    uint32_t length;   // Độ dài payload (network byte order)
+} PacketHeader;  // Tổng cộng 8 bytes
+```
+
+### 5.5 Đăng Nhập Trùng Lặp
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Cùng tài khoản đăng nhập từ thiết bị khác |
+| **Phát hiện** | `session_manager_get_by_user_id()` tìm thấy session hiện có |
+| **Xử lý phía Server** | Gửi thông báo logout cho session cũ, đóng socket cũ, thiết lập session mới |
+| **Xử lý phía Client** | Client cũ nhận `CMD_RES_LOGOUT` với `"NEW_LOGIN_DETECTED"` |
+
+### 5.6 Server Quá Tải
+
+| Khía cạnh | Chi tiết |
+|-----------|----------|
+| **Nguyên nhân gốc** | Quá nhiều kết nối đồng thời |
+| **Phát hiện** | `session_count >= max_sessions` (mặc định 1024), `game_count >= MAX_GAMES` (100) |
+| **Xử lý phía Server** | Đóng kết nối mới, trả lỗi cho game mới |
+| **Xử lý phía Client** | Kết nối bị từ chối hoặc nhận response lỗi |
+
+```c
+// Kiểm tra giới hạn session
+if (mgr->session_count >= mgr->max_sessions) return -1;
+
+// Kiểm tra giới hạn game
+if (game_count >= MAX_GAMES) {
+    protocol_send_error(sess, CMD_RES_START_GAME, "MAX_GAMES_REACHED");
+}
+```
+
+---
+
+## 6. Quyết Định Thiết Kế
+
+### 6.1 Các Hành Vi Được Triển Khai Rõ Ràng
+
+| Tính năng | Triển khai |
+|-----------|------------|
+| **Epoll đơn luồng** | Tránh vấn đề đồng bộ hóa thread |
+| **Chế độ edge-triggered** | Hiệu suất tốt hơn, yêu cầu xử lý cẩn thận |
+| **Buffer packet từng phần** | Xử lý TCP stream mạnh mẽ |
+| **Một session cho mỗi tài khoản** | Ngăn chặn sự mơ hồ về chiếm đoạt session |
+| **Trạng thái game trong bộ nhớ** | Truy cập nhanh, không có độ trễ database cho logic game |
+| **Quản lý vòng dựa trên timer** | Xử lý timeout đáng tin cậy |
+| **Giới hạn tốc độ** | Giới hạn chat (5 tin nhắn mỗi 3 giây mỗi người dùng mỗi phòng) |
+| **Thông báo trạng thái bạn bè** | Broadcast online/offline thời gian thực |
+
+### 6.2 Thiếu Nhưng NÊN Được Triển Khai
+
+| Tính năng | Lý do |
+|-----------|-------|
+| **Hỗ trợ kết nối lại** | Người chơi mất tiến độ game khi ngắt kết nối ngắn |
+| **Cơ chế Heartbeat/Ping** | `CMD_REQ_PING` được định nghĩa nhưng không sử dụng; cần để phát hiện kết nối nhàn rỗi |
+| **Thông báo tắt server có kiểm soát** | Client không được thông báo khi server tắt |
+| **Quản lý buffer ghi** | Không xử lý `EAGAIN` trên `send()` (có thể blocking với payload lớn) |
+| **Timeout kết nối** | Không có timeout cho kết nối ẩn danh nhàn rỗi (vector tấn công DoS) |
+| **Giới hạn tốc độ theo client** | Chỉ room chat có giới hạn tốc độ; các lệnh khác thì không |
+| **Transaction database cho trạng thái game** | Trạng thái trong bộ nhớ có thể lệch với database khi crash |
+| **Mã hóa SSL/TLS** | TCP plaintext (chấp nhận được cho LAN, không cho Internet) |
+
+### 6.3 Sự Đánh Đổi và Hạn Chế
+
+| Đánh đổi | Hệ quả |
+|----------|--------|
+| **Thiết kế đơn luồng** | Đơn giản nhưng giới hạn sử dụng CPU; các lệnh database chặn vòng lặp chính |
+| **Trạng thái game trong bộ nhớ** | Nhanh nhưng mất khi server crash |
+| **Epoll edge-triggered** | Hiệu suất cao hơn nhưng yêu cầu kỷ luật trong xử lý đọc |
+| **Kích thước buffer cố định** | Bộ nhớ dự đoán được nhưng giới hạn kích thước packet tối đa |
+| **Session manager toàn cục** | Tiện lợi nhưng không an toàn cho multi-process |
+| **Lưu trữ trạng thái game dựa trên array** | Tra cứu O(n); chấp nhận được cho 100 game, không cho hàng nghìn |
+
+---
+
+## 7. Phần Hỏi Đáp Sẵn Sàng Cho Bảo Vệ
+
+### Câu 1: Server sử dụng giao thức transport nào và tại sao?
+
+**Đáp:** TCP (SOCK_STREAM). TCP cung cấp truyền tải đáng tin cậy, có thứ tự, điều này rất cần thiết cho game trắc nghiệm nơi câu hỏi và câu trả lời phải đến mà không bị mất hoặc sai thứ tự. Server sử dụng protocol ở tầng ứng dụng tùy chỉnh với header cố định 8 byte chứa loại lệnh và độ dài payload.
+
+### Câu 2: Server xử lý nhiều kết nối đồng thời như thế nào?
+
+**Đáp:** Sử dụng API multiplexing I/O **epoll** ở **chế độ edge-triggered** với socket non-blocking. Vòng lặp sự kiện đơn luồng xử lý tất cả kết nối, loại bỏ overhead đồng bộ hóa thread. Dung lượng tối đa là 1024 session đồng thời (có thể cấu hình qua `MAX_SESSIONS`).
+
+### Câu 3: Server xử lý phân mảnh TCP stream như thế nào?
+
+**Đáp:** Mỗi `ClientSession` duy trì buffer đọc 8KB (`read_buffer`) với các biến theo dõi (`read_buffer_len`, `expected_len`, `pending_cmd`). Hàm `client_session_read_packet()` triển khai một state machine:
+1. Đầu tiên, đọc header 8 byte
+2. Trích xuất độ dài payload từ header
+3. Nếu chưa nhận đủ payload, trả về 0 (chờ thêm dữ liệu)
+4. Khi nhận đủ packet, trả về 1 và reset buffer
+
+### Câu 4: Điều gì xảy ra khi client ngắt kết nối đột ngột trong game?
+
+**Đáp:** Server phát hiện ngắt kết nối qua `recv() <= 0`. Đối với game 1vN, người chơi bị đánh dấu là loại trong cả trạng thái bộ nhớ (`player_eliminated[i] = 1`) và database (`dao_rooms_mark_eliminated`). Game tiếp tục cho những người chơi khác. Bạn bè được thông báo về trạng thái offline.
+
+### Câu 5: Server ngăn chặn cùng tài khoản đăng nhập hai lần như thế nào?
+
+**Đáp:** **Chính sách đăng nhập sau thắng**. Trong quá trình đăng nhập, server kiểm tra `session_manager_get_by_user_id()` cho các session hiện có. Nếu tìm thấy, session cũ nhận thông báo logout (`CMD_RES_LOGOUT` với `"NEW_LOGIN_DETECTED"`), socket của nó bị đóng bắt buộc, và session mới được thiết lập.
+
+### Câu 6: Server thực thi thời gian game (ví dụ: 15 giây mỗi câu hỏi) như thế nào?
+
+**Đáp:** Hệ thống timer tùy chỉnh trong `utils/timer.c`. Khi câu hỏi được gửi, timer 15 giây được tạo qua `game_timer_create()`. Vòng lặp sự kiện chính gọi `game_timer_check_and_run()` mỗi 100ms. Khi timer hết hạn, `round_timeout_callback()` được gọi, xử lý người chơi chưa trả lời và chuyển sang câu hỏi tiếp theo.
+
+### Câu 7: Định dạng packet được sử dụng là gì?
+
+**Đáp:** 
+```
+| cmd (2 bytes) | user_id (2 bytes) | length (4 bytes) | payload (biến đổi) |
+```
+- `cmd`: Mã lệnh theo network byte order (big-endian)
+- `user_id`: Định danh người dùng bị cắt ngắn
+- `length`: Kích thước payload theo network byte order
+- `payload`: Dữ liệu định dạng JSON
+
+### Câu 8: Server broadcast tin nhắn đến thành viên phòng như thế nào?
+
+**Đáp:** `session_manager_broadcast_to_room(room_id, cmd, json, len)` lặp qua tất cả session, kiểm tra nếu `sess->room_id` khớp với phòng mục tiêu, và gửi packet đến mỗi session khớp.
+
+### Câu 9: Điều gì xảy ra nếu server không thể theo kịp các kết nối đến?
+
+**Đáp:** Khi `session_count >= max_sessions`, session mới bị từ chối. `accept()` vẫn thành công, nhưng `session_manager_add()` trả về -1, khiến server đóng client socket và giải phóng cấu trúc session. Client trải nghiệm kết nối bị đóng ngay lập tức.
+
+### Câu 10: Kết nối lại có được hỗ trợ không?
+
+**Đáp:** Mã lệnh tồn tại (`CMD_REQ_RECONNECT`, `CMD_RES_RECONNECT`) nhưng **chưa được triển khai**. Hiện tại, người chơi bị ngắt kết nối mất trạng thái game và phải tham gia lại từ sảnh chờ.
+
+### Câu 11: Server xử lý lệnh sai định dạng hoặc không xác định như thế nào?
+
+**Đáp:** Dispatcher sử dụng câu lệnh `switch` trên các danh mục lệnh. Lệnh không xác định rơi vào case `default`, gửi `protocol_send_error(sess, cmd, "UNKNOWN_CMD")`. Packet vượt quá kích thước buffer gây ngắt kết nối ngay lập tức.
+
+### Câu 12: Database nào được sử dụng và nó tương tác với tầng mạng như thế nào?
+
+**Đáp:** PostgreSQL (dựa trên các pattern triển khai DAO). Các lệnh database là đồng bộ và được thực hiện từ vòng lặp sự kiện chính qua các hàm DAO như `dao_rooms_create_with_config()`. Đây là nút thắt cổ chai tiềm năng vì độ trễ database chặn toàn bộ server.
+
+---
+
+## 8. Sơ Đồ Kiến Trúc
+
+```
++------------------------------------------------------------------+
+|                          CLIENT                                   |
+|  +----------+  +----------+  +----------+  +----------+          |
+|  | Qt6 GUI  |  | Socket   |  | Protocol |  | Game     |          |
+|  |          |<>| Manager  |<>| Handler  |<>| Logic    |          |
+|  +----------+  +----------+  +----------+  +----------+          |
++-------------------------------+----------------------------------+
+                                | TCP/IP
++-------------------------------v----------------------------------+
+|                          SERVER                                   |
+|  +------------------------------------------------------------+  |
+|  |                    main.c (Entry)                           |  |
+|  |                         |                                   |  |
+|  |  +----------------------v----------------------------+      |  |
+|  |  |              server.c (Vòng lặp sự kiện)           |     |  |
+|  |  |   +-------------------------+                      |     |  |
+|  |  |   | epoll_wait() + timers   |                      |     |  |
+|  |  |   +------------+------------+                      |     |  |
+|  |  +----------------|---------------------------------+       |  |
+|  |                   |                                         |  |
+|  |  +----------------v--------------------------------------+  |  |
+|  |  |           session_manager.c                            |  |  |
+|  |  |   +---------+  +---------+  +---------+               |  |  |
+|  |  |   |Session 1|  |Session 2|  |Session N|               |  |  |
+|  |  |   +---------+  +---------+  +---------+               |  |  |
+|  |  +--------------------+-----------------------------------+  |  |
+|  |                       |                                      |  |
+|  |  +--------------------v-----------------------------------+  |  |
+|  |  |              dispatcher.c (Bộ định tuyến)               |  |  |
+|  |  |   0x01:Auth  0x02:Friends  0x04:Room  0x05:QM          |  |  |
+|  |  |   0x03:Chat  0x06:1vN      0x07:Stats                  |  |  |
+|  |  +---+----------+----------+----------+-------------------+  |  |
+|  |      |          |          |          |                      |  |
+|  |  +---v---+  +---v---+  +---v---+  +---v---+                 |  |
+|  |  | auth  |  |friends|  |quick  |  |onevn  | ...             |  |
+|  |  |_svc.c |  |_svc.c |  |mode.c |  |_svc.c |                 |  |
+|  |  +---+---+  +---+---+  +---+---+  +---+---+                 |  |
+|  |      +-----------+----------+----------+                     |  |
+|  |                       |                                      |  |
+|  |  +--------------------v-----------------------------------+  |  |
+|  |  |                   Tầng DAO                              |  |  |
+|  |  |   dao_users  dao_rooms  dao_friends  dao_onevn         |  |  |
+|  |  +--------------------+-----------------------------------+  |  |
+|  |                       |                                      |  |
+|  |  +--------------------v-----------------------------------+  |  |
+|  |  |                 PostgreSQL                              |  |  |
+|  |  +--------------------------------------------------------+  |  |
+|  +------------------------------------------------------------+  |
++------------------------------------------------------------------+
+```
+
+---
+
+## Phụ Lục: Các File Nguồn Chính
+
+| File | Mục đích |
+|------|----------|
+| `server/src/service/server.c` | Vòng lặp sự kiện chính, thiết lập socket, quản lý epoll |
+| `server/src/service/session_manager.c` | Lưu trữ session, đăng ký epoll, broadcasting |
+| `server/src/service/client_session.c` | Trạng thái mỗi kết nối, buffer packet từng phần |
+| `server/src/service/protocol.c` | Xây dựng và gửi packet |
+| `server/src/service/dispatcher.c` | Định tuyến lệnh đến các handler service |
+| `server/src/service/auth_service.c` | Đăng nhập, đăng ký, đăng xuất, xử lý đăng nhập trùng |
+| `server/src/service/quickmode_service.c` | Logic game solo |
+| `server/src/service/onevn_service.c` | Logic game đa người chơi, timers |
+| `server/src/service/friends_service.c` | Bạn bè, chat, mời vào phòng |
+| `server/src/utils/timer.c` | Hệ thống timer dựa trên polling |
+| `server/include/service/commands.h` | Định nghĩa các lệnh protocol |

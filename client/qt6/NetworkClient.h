@@ -39,6 +39,12 @@ public:
     Q_INVOKABLE void sendStartGame1VN(qint64 roomId);
     Q_INVOKABLE void sendSubmitAnswer1VN(qint64 sessionId, int round, const QString &answer, double timeLeft);
     
+    // Reconnect functionality
+    Q_INVOKABLE void sendReconnect();
+    Q_INVOKABLE void setInGameState(qint64 roomId, bool inGame);
+    Q_INVOKABLE bool isInGame() const;
+    Q_INVOKABLE qint64 getCurrentRoomId() const;
+    
     // Friends & Chat requests
     Q_INVOKABLE void sendSearchUser(const QString &query, int limit = 20);
     Q_INVOKABLE void sendAddFriend(qint64 friendId);
@@ -99,6 +105,10 @@ signals:
     void oneVNElimination(qint64 userId, int round);
     void oneVNGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard);
     
+    // Reconnect signals
+    void reconnectNeeded(qint64 userId, const QString &accessToken, qint64 roomId);
+    void reconnectResponse(bool success, qint64 roomId, int score, int currentRound, int timeRemaining, const QString &error);
+    
     // Friends & Chat signals
     void searchUserResult(const QJsonArray &users);
     void addFriendResult(bool success, const QString &error);
@@ -138,6 +148,10 @@ private:
         bool m_isLoggingOut;  // Flag to prevent showing disconnect popup on intentional logout
         quint16 m_userId;  // User ID from login
     QByteArray m_buffer;  // Buffer for incomplete packets
+    
+    // Reconnect state tracking
+    qint64 m_currentRoomId;  // Current room ID when in game
+    bool m_isInGame;         // Whether player is currently in a game
     
     // Duplicate prevention tracking for questions
     qint64 m_lastQuestionSessionId;

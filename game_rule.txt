@@ -1,0 +1,210 @@
+# LUẬT CHƠI GAME - WHO'S THE MILLIONAIRE
+# =========================================
+
+## 1. CHẾ ĐỘ CHƠI
+
+### 1.1 Chế độ QuickMode (Chơi đơn)
+- Số câu hỏi: 15 câu
+- Cấu trúc: 5 câu DỄ + 5 câu TRUNG BÌNH + 5 câu KHÓ
+- Thời gian mỗi câu: 15 giây
+- Mục tiêu: Trả lời đúng liên tiếp 15 câu để chiến thắng
+- Thua: Trả lời sai 1 câu bất kỳ
+
+### 1.2 Chế độ 1vN (Đối kháng đa người chơi)
+- Số người chơi: Tối thiểu 2 người
+- Số câu hỏi: Tùy chỉnh (mặc định 5 DỄ + 5 TRUNG BÌNH + 5 KHÓ = 15 câu)
+- Thời gian mỗi câu: 15 giây
+- Mục tiêu: Đạt điểm cao nhất khi kết thúc tất cả câu hỏi
+
+---
+
+## 2. HỆ THỐNG PHÒNG CHƠI
+
+### 2.1 Tạo phòng
+- Chỉ người tạo phòng (chủ phòng) mới có quyền bắt đầu game
+- Có thể tùy chỉnh số câu hỏi theo độ khó:
+  + easy_count: Số câu dễ (mặc định: 5)
+  + medium_count: Số câu trung bình (mặc định: 5)
+  + hard_count: Số câu khó (mặc định: 5)
+
+### 2.2 Tham gia phòng
+- Người chơi có thể tham gia phòng đang chờ (WAITING)
+- Có thể mời bạn bè vào phòng qua hệ thống invite
+
+### 2.3 Trạng thái phòng
+| Trạng thái | Mô tả |
+|------------|-------|
+| WAITING    | Đang chờ người chơi, có thể vào/ra |
+| STARTING   | Đang bắt đầu game |
+| IN_PROGRESS| Game đang diễn ra |
+| FINISHED   | Game đã kết thúc |
+
+### 2.4 Quyền chủ phòng
+- Bắt đầu game (CMD_REQ_START_GAME)
+- Nếu chủ phòng rời trước khi game bắt đầu → Phòng bị xóa
+- Nếu chủ phòng rời trong game → Chủ phòng bị loại, game tiếp tục
+
+---
+
+## 3. CÔNG THỨC TÍNH ĐIỂM (Chế độ 1vN)
+
+### 3.1 Điểm cơ bản theo độ khó
+| Độ khó | Điểm cơ bản |
+|--------|-------------|
+| EASY   | 1000 điểm   |
+| MEDIUM | 1500 điểm   |
+| HARD   | 2000 điểm   |
+
+### 3.2 Công thức tính điểm
+```
+Điểm = (Điểm_cơ_bản × Phần_trăm_thời_gian_còn_lại / 100) + Bonus_liên_tiếp
+```
+
+**Ví dụ:**
+- Câu MEDIUM, trả lời còn 10 giây (66.7% thời gian)
+- Điểm = 1500 × 66.7% = 1000 điểm (chưa tính bonus)
+
+### 3.3 Bonus trả lời đúng liên tiếp
+| Số câu đúng liên tiếp | Bonus |
+|----------------------|-------|
+| 3 câu                | +100  |
+| 4 câu                | +200  |
+| 5 câu trở lên        | +500  |
+
+**Lưu ý:** Trả lời sai hoặc timeout → Reset chuỗi về 0
+
+### 3.4 Không trả lời (Timeout)
+- Điểm: 0
+- Không bị loại khỏi game
+- Reset chuỗi đúng liên tiếp
+
+---
+
+## 4. THỜI GIAN
+
+### 4.1 Thời gian trả lời
+- Mỗi câu hỏi: 15 giây
+- Thời gian còn lại được gửi về client để tính điểm
+
+### 4.2 Delay giữa các câu
+- Sau khi tất cả người chơi trả lời: Delay 3 giây trước câu tiếp theo
+- Sau khi timeout: Delay 3 giây trước câu tiếp theo
+
+### 4.3 Timeout xử lý
+- Server kiểm tra timer mỗi 100ms
+- Khi hết 15 giây → Gửi thông báo timeout cho người chưa trả lời
+- Tất cả người chưa trả lời nhận 0 điểm
+
+---
+
+## 5. QUYỀN TRỢ GIÚP (LIFELINE)
+
+### 5.1 Trợ giúp 50:50 (Chỉ có trong QuickMode)
+- Số lần sử dụng: Tối đa 2 lần mỗi session
+- Chức năng: Loại bỏ 2 đáp án sai, còn lại 2 đáp án (1 đúng, 1 sai)
+
+### 5.2 Điều kiện sử dụng
+- Chưa trả lời câu hỏi hiện tại
+- Còn lượt sử dụng (< 2 lần)
+- Không thể dùng sau khi đã chọn đáp án
+
+### 5.3 Response khi dùng 50:50
+```json
+{
+    "remaining_options": ["A", "C"],  // Đáp án còn lại
+    "removed_options": ["B", "D"],    // Đáp án bị loại
+    "lifeline_remaining": 1           // Số lần còn lại
+}
+```
+
+---
+
+## 6. XẾP HẠNG & KẾT QUẢ
+
+### 6.1 Xếp hạng trong phòng (1vN)
+- Sắp xếp theo điểm giảm dần
+- Người cao điểm nhất = Hạng 1
+- Trường hợp hòa điểm: Không có tie-breaker (cùng xếp theo thứ tự mảng)
+
+### 6.2 Cấu trúc bảng xếp hạng
+```json
+{
+    "rank": 1,
+    "user_id": 123,
+    "score": 15000,
+    "eliminated": false
+}
+```
+
+### 6.3 Điều kiện thắng
+- **QuickMode:** Trả lời đúng tất cả 15 câu
+- **1vN:** Điểm cao nhất khi kết thúc tất cả câu hỏi
+
+### 6.4 Điều kiện thua
+- **QuickMode:** Trả lời sai bất kỳ câu nào
+- **1vN:** Không thua (chỉ có xếp hạng cuối)
+
+---
+
+## 7. XỬ LÝ NGẮT KẾT NỐI
+
+### 7.1 Ngắt kết nối trong game 1vN
+- Người chơi bị đánh dấu "eliminated" = true
+- Không bị loại khỏi leaderboard
+- Điểm giữ nguyên tại thời điểm ngắt
+
+### 7.2 Ngắt kết nối trong QuickMode
+- Session bị xóa
+- Game kết thúc, không lưu kết quả
+
+---
+
+## 8. THỐNG KÊ & LỊCH SỬ
+
+### 8.1 Lưu trữ sau game
+- ID session game
+- ID người thắng
+- Điểm tất cả người chơi
+- Lịch sử từng vòng (câu hỏi, đáp án, thời gian)
+
+### 8.2 Replay
+- Có thể xem lại chi tiết từng round
+- Thông tin: câu hỏi, đáp án đúng, đáp án của mỗi người chơi, điểm
+
+---
+
+## 9. GIỚI HẠN HỆ THỐNG
+
+| Thông số | Giá trị |
+|----------|---------|
+| Số phòng đồng thời tối đa | 100 |
+| Số người chơi tối đa mỗi phòng | 32 |
+| Thời gian trả lời mỗi câu | 15 giây |
+| Kích thước buffer đọc | 8KB |
+| Session timeout (database) | 3600 giây (1 giờ) |
+
+---
+
+## 10. BẢN TÓM TẮT NHANH
+
+```
+╔═══════════════════════════════════════════════════════════════╗
+║                    QUICKMODE (ĐƠN)                             ║
+╠═══════════════════════════════════════════════════════════════╣
+║ • 15 câu (5 dễ + 5 vừa + 5 khó)                               ║
+║ • 15 giây/câu                                                  ║
+║ • Sai 1 câu = Thua                                             ║
+║ • Trợ giúp 50:50: Tối đa 2 lần                                 ║
+╚═══════════════════════════════════════════════════════════════╝
+
+╔═══════════════════════════════════════════════════════════════╗
+║                    1vN (ĐA NGƯỜI)                              ║
+╠═══════════════════════════════════════════════════════════════╣
+║ • Từ 2 người chơi trở lên                                      ║
+║ • 15 giây/câu                                                  ║
+║ • Tính điểm: (Điểm cơ bản × %Thời gian) + Bonus               ║
+║ • Điểm cơ bản: DỄ=1000, VỪA=1500, KHÓ=2000                    ║
+║ • Bonus liên tiếp: 3→+100, 4→+200, 5+→+500                    ║
+║ • Người cao điểm nhất = Thắng                                  ║
+╚═══════════════════════════════════════════════════════════════╝
+```
