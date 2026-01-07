@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include "service/onevn_service.h"
 #include "service/commands.h"
 #include "service/protocol.h"
@@ -35,6 +36,9 @@ typedef struct OneVNGameState {
     int *player_consecutive_correct;
     int *player_eliminated;
     int64_t *player_answered_round;  // Track which round each player last answered
+    // Lifeline 50:50 usage tracking per player (max 2 uses)
+    int *player_lifeline_used;       // Count per player (0-2)
+    int (*player_lifeline_rounds)[2]; // Rounds where lifeline was used per player
     int timer_id;  // Timer ID for current round
     int64_t current_round_id;  // Database round_id for current round (for replay)
     // Track used question IDs to prevent duplicates
@@ -109,6 +113,8 @@ static void free_game_state(OneVNGameState *state) {
     if (state->player_consecutive_correct) free(state->player_consecutive_correct);
     if (state->player_eliminated) free(state->player_eliminated);
     if (state->player_answered_round) free(state->player_answered_round);
+    if (state->player_lifeline_used) free(state->player_lifeline_used);
+    if (state->player_lifeline_rounds) free(state->player_lifeline_rounds);
     if (state->used_question_ids) free(state->used_question_ids);
     free(state);
 }
@@ -138,6 +144,8 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
     state->player_consecutive_correct = calloc(player_count, sizeof(int));
     state->player_eliminated = calloc(player_count, sizeof(int));
     state->player_answered_round = calloc(player_count, sizeof(int64_t));
+    state->player_lifeline_used = calloc(player_count, sizeof(int));
+    state->player_lifeline_rounds = calloc(player_count, sizeof(int[2]));
     state->timer_id = -1;
     state->current_round_id = -1;  // No round created yet
     
@@ -148,7 +156,8 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
 
     if (!state->player_ids || !state->player_scores || 
         !state->player_consecutive_correct || !state->player_eliminated ||
-        !state->player_answered_round || !state->used_question_ids) {
+        !state->player_answered_round || !state->player_lifeline_used ||
+        !state->player_lifeline_rounds || !state->used_question_ids) {
         free_game_state(state);
         return NULL;
     }
@@ -159,6 +168,9 @@ static OneVNGameState *init_game_state(int64_t session_id, int64_t room_id,
         state->player_consecutive_correct[i] = 0;
         state->player_eliminated[i] = 0;
         state->player_answered_round[i] = -1;
+        state->player_lifeline_used[i] = 0;
+        state->player_lifeline_rounds[i][0] = 0;
+        state->player_lifeline_rounds[i][1] = 0;
     }
 
     return state;
@@ -621,6 +633,121 @@ static void handle_submit_answer_1vn(ClientSession *sess, const char *payload, u
     }
 }
 
+// Handle lifeline 50:50 in 1vN (per-player, max 2 uses)
+static void handle_use_lifeline_1vn(ClientSession *sess, const char *payload, uint32_t payload_len) {
+    (void)payload_len;
+
+    if (!sess || !payload) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INVALID_REQUEST");
+        return;
+    }
+
+    long long session_id_ll = 0;
+    long long round_ll = 0;
+    util_json_get_int64(payload, "session_id", &session_id_ll);
+    util_json_get_int64(payload, "round", &round_ll);
+    int64_t session_id = (int64_t)session_id_ll;
+    int round = (int)round_ll;
+
+    if (session_id == 0 || round <= 0) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INVALID_PARAMETERS");
+        return;
+    }
+
+    OneVNGameState *state = get_game_state(session_id);
+    if (!state) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "SESSION_NOT_FOUND");
+        return;
+    }
+
+    // Find player index
+    int player_idx = -1;
+    for (int i = 0; i < state->player_count; i++) {
+        if (state->player_ids[i] == sess->user_id) { player_idx = i; break; }
+    }
+    if (player_idx < 0) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "NOT_IN_GAME");
+        return;
+    }
+
+    // Validate player status
+    if (state->player_eliminated[player_idx]) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "ALREADY_ELIMINATED");
+        return;
+    }
+
+    // Use server's current round as source of truth
+    if (round != state->current_round) {
+        round = state->current_round;
+    }
+
+    // Cannot use lifeline after answering
+    if (state->player_answered_round[player_idx] == state->current_round) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "ROUND_ALREADY_ANSWERED");
+        return;
+    }
+
+    // Check usage limit
+    if (state->player_lifeline_used[player_idx] >= 2) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "LIFELINE_EXHAUSTED");
+        return;
+    }
+
+    // Current question and correct option
+    Question *q = &state->current_question;
+    char correct_op = q->correct_op[0];
+    if (correct_op >= 'a' && correct_op <= 'd') correct_op = (char)(correct_op - 'a' + 'A');
+    if (correct_op < 'A' || correct_op > 'D') {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INVALID_QUESTION_DATA");
+        return;
+    }
+
+    // Build wrong options list
+    char wrong_options[3] = {0};
+    int wrong_count = 0;
+    for (char opt = 'A'; opt <= 'D'; opt++) {
+        if (opt != correct_op) wrong_options[wrong_count++] = opt;
+    }
+    if (wrong_count != 3) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INTERNAL_ERROR");
+        return;
+    }
+
+    // Pick one wrong option to keep
+    time_t now = time(NULL);
+    int random_idx = (int)((now + session_id + sess->user_id) % wrong_count);
+    if (random_idx < 0) random_idx = -random_idx % wrong_count;
+    char keep_wrong = wrong_options[random_idx];
+    if (keep_wrong < 'A' || keep_wrong > 'D') {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INTERNAL_ERROR");
+        return;
+    }
+
+    // Remaining and removed options
+    char remaining[2] = { correct_op, keep_wrong };
+    char removed[2] = {0}; int ridx = 0;
+    for (char opt = 'A'; opt <= 'D'; opt++) {
+        if (opt != correct_op && opt != keep_wrong) removed[ridx++] = opt;
+    }
+    if (ridx != 2) {
+        protocol_send_error(sess, CMD_RES_USE_LIFELINE_1VN, "INTERNAL_ERROR");
+        return;
+    }
+
+    // Update usage tracking
+    int used = ++state->player_lifeline_used[player_idx];
+    state->player_lifeline_rounds[player_idx][used - 1] = round;
+    int remaining_uses = 2 - used;
+
+    // Respond to requesting player only
+    char resp[512];
+    snprintf(resp, sizeof(resp),
+        "{\"session_id\":%ld,\"round\":%d,\"lifeline_type\":\"50-50\"," 
+        "\"remaining_options\":[\"%c\",\"%c\"],\"removed_options\":[\"%c\",\"%c\"],\"lifeline_remaining\":%d}",
+        session_id, round, remaining[0], remaining[1], removed[0], removed[1], remaining_uses);
+    protocol_send_response(sess, CMD_RES_USE_LIFELINE_1VN, resp, strlen(resp));
+}
+
 // Timer callback for delayed question sending (2 seconds after all answered or timeout)
 static void delayed_question_callback(int64_t context_id, void *user_data) {
     OneVNGameState *state = (OneVNGameState *)user_data;
@@ -998,6 +1125,10 @@ void onevn_dispatch(ClientSession *sess, uint16_t cmd, const char *payload, uint
 
         case CMD_REQ_SUBMIT_ANSWER_1VN:
             handle_submit_answer_1vn(sess, payload, payload_len);
+            break;
+
+        case CMD_REQ_USE_LIFELINE_1VN:
+            handle_use_lifeline_1vn(sess, payload, payload_len);
             break;
 
         default:

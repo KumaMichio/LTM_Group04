@@ -88,6 +88,8 @@
 #define CMD_RES_SUBMIT_ANSWER_1VN 0x0604  // Server → Client: Answer result
 #define CMD_NOTIFY_ELIMINATION    0x0605  // Server → Client: Eliminated players
 #define CMD_NOTIFY_GAME_OVER_1VN  0x0606  // Server → Client: Game end
+#define CMD_REQ_USE_LIFELINE_1VN  0x0607  // Client → Server: Use 50-50 lifeline
+#define CMD_RES_USE_LIFELINE_1VN  0x0608  // Server → Client: Lifeline result
 
 // ========== 0x07xx – Stats / Leaderboard
 #define CMD_REQ_GET_PROFILE     0x0701    // Client → Server: Request profile

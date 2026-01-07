@@ -26,6 +26,7 @@ Item {
     property bool waitingForAnswer: false
     property int timeRemaining: 15
     property string selectedAnswer: ""
+    property int lifelineRemaining: 2
 
     // Queued question
     property var queuedQuestion: null
@@ -1193,6 +1194,45 @@ Component {
                         font.bold: true
                         color: timeRemaining <= 5 ? "#f44336" : "#FFFFFF"
                     }
+
+                    // Lifeline 50:50 button (similar to QuickMode)
+                    Rectangle {
+                        Layout.preferredWidth: 120
+                        Layout.preferredHeight: 36
+                        radius: 18
+                        color: (!waitingForAnswer && !eliminated && lifelineRemaining > 0 && optionA.length > 0) ? "#FFB300" : "#7A5E1A"
+                        border.color: "#FFD54F"
+                        border.width: 1
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 6
+
+                            Image {
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                                source: "qrc:/icons/lifeline.svg"
+                                visible: true
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: lifelineRemaining > 0 ? ("50:50 (" + lifelineRemaining + ")") : "50:50 (Hết)"
+                                font.family: "Lexend"
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: "white"
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            enabled: !waitingForAnswer && !eliminated && lifelineRemaining > 0 && optionA.length > 0
+                            onClicked: if (sessionId > 0 && currentRound > 0) networkClient.sendUseLifeline1VN(sessionId, currentRound)
+                        }
+                    }
                 }
 
                 Rectangle {
@@ -1644,6 +1684,7 @@ Component {
             showingScoreMessage = false
             queuedQuestion = null
             waitingForNextQuestion = false
+            lifelineRemaining = 2
             screenStack.replace(gamePlayingScreen)
         }
 
@@ -1770,6 +1811,24 @@ Component {
         waitingForAnswer = true
         questionTimer.stop()
         networkClient.sendSubmitAnswer1VN(sessionId, currentRound, answer, timeRemaining)
+    }
+
+    // Lifeline result handler (similar to QuickMode)
+    function onOneVNLifelineResult(gameSessionId, round, remainingOptions, removedOptions, remaining) {
+        if (gameSessionId !== sessionId) return
+        lifelineRemaining = remaining
+        if (removedOptions.indexOf("A") >= 0) optionA = ""
+        if (removedOptions.indexOf("B") >= 0) optionB = ""
+        if (removedOptions.indexOf("C") >= 0) optionC = ""
+        if (removedOptions.indexOf("D") >= 0) optionD = ""
+    }
+
+    // Connect lifeline signal from NetworkClient to handler
+    Connections {
+        target: networkClient
+        function onOneVNLifelineResult(gameSessionId, round, remainingOptions, removedOptions, remaining) {
+            oneVNMode.onOneVNLifelineResult(gameSessionId, round, remainingOptions, removedOptions, remaining)
+        }
     }
 
     // Friends List Dialog for inviting

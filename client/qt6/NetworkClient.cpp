@@ -42,6 +42,9 @@
 #define CMD_RES_SUBMIT_ANSWER_1VN  0x0604
 #define CMD_NOTIFY_ELIMINATION     0x0605
 #define CMD_NOTIFY_GAME_OVER_1VN   0x0606
+// 1vN lifeline commands
+#define CMD_REQ_USE_LIFELINE_1VN    0x0607
+#define CMD_RES_USE_LIFELINE_1VN    0x0608
 
 // Friends commands
 #define CMD_REQ_ADD_FRIEND         0x0201
@@ -355,6 +358,18 @@ void NetworkClient::sendSubmitAnswer1VN(qint64 sessionId, int round, const QStri
     QByteArray json = doc.toJson(QJsonDocument::Compact);
 
     sendPacket(CMD_REQ_SUBMIT_ANSWER_1VN, m_userId, json);
+}
+
+void NetworkClient::sendUseLifeline1VN(qint64 sessionId, int round)
+{
+    QJsonObject obj;
+    obj["session_id"] = sessionId;
+    obj["round"] = round;
+
+    QJsonDocument doc(obj);
+    QByteArray json = doc.toJson(QJsonDocument::Compact);
+
+    sendPacket(CMD_REQ_USE_LIFELINE_1VN, m_userId, json);
 }
 
 void NetworkClient::onReadyRead()
@@ -750,6 +765,26 @@ void NetworkClient::parsePacket(quint16 cmd, const QByteArray &jsonData)
                 qint64 winnerId = obj["winner_id"].toVariant().toLongLong();
                 QJsonArray leaderboard = obj["leaderboard"].toArray();
                 emit oneVNGameOver1VN(winnerId, leaderboard);
+            }
+            break;
+
+        case CMD_RES_USE_LIFELINE_1VN:
+            if (obj.contains("session_id") && obj.contains("round") &&
+                obj.contains("remaining_options") && obj.contains("removed_options")) {
+                qint64 sessionId = obj["session_id"].toVariant().toLongLong();
+                int round = obj["round"].toInt();
+                QStringList remainingOptions;
+                QJsonArray remainingArr = obj["remaining_options"].toArray();
+                for (const QJsonValue &val : remainingArr) {
+                    remainingOptions << val.toString();
+                }
+                QStringList removedOptions;
+                QJsonArray removedArr = obj["removed_options"].toArray();
+                for (const QJsonValue &val : removedArr) {
+                    removedOptions << val.toString();
+                }
+                int remaining = obj["lifeline_remaining"].toInt();
+                emit oneVNLifelineResult(sessionId, round, remainingOptions, removedOptions, remaining);
             }
             break;
 
