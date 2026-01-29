@@ -371,13 +371,6 @@ Item {
                                     font.pixelSize: 12
                                     color: "#B0B0B0"
                                 }
-                                
-                                Text {
-                                    text: "Người chơi: " + (modelData.member_count || 0) + "/" + (modelData.max_players || 8)
-                                    font.family: "Lexend"
-                                    font.pixelSize: 12
-                                    color: "#B0B0B0"
-                                }
                             }
                             
                             // Join button

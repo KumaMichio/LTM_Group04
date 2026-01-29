@@ -191,6 +191,66 @@ CREATE INDEX idx_onevn_player_answers_round ON onevn_player_answers(round_id);
 CREATE INDEX idx_onevn_player_answers_user ON onevn_player_answers(user_id);
 
 -- =========================
+-- AUTO CLOSE ROOM WHEN OWNER LEAVES
+-- =========================
+
+-- Cho phép owner_id NULL tạm thời (khi phòng đóng)
+ALTER TABLE room 
+  ALTER COLUMN owner_id DROP NOT NULL;
+
+-- Function: Tự động đóng phòng khi owner rời
+CREATE OR REPLACE FUNCTION auto_close_room_on_owner_leave()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_owner_id BIGINT;
+  v_room_status TEXT;
+BEGIN
+  -- Lấy thông tin phòng
+  SELECT owner_id, status
+  INTO v_owner_id, v_room_status
+  FROM room
+  WHERE room_id = OLD.room_id;
+  
+  -- Kiểm tra: owner_id không NULL, user rời là owner, và phòng đang hoạt động
+  IF v_owner_id IS NOT NULL 
+     AND v_owner_id = OLD.user_id 
+     AND v_room_status IN ('WAITING', 'STARTING') THEN
+    
+    -- Đóng phòng
+    UPDATE room 
+    SET 
+      status = 'FINISHED',
+      ended_at = NOW(),
+      owner_id = NULL
+    WHERE room_id = OLD.room_id;
+    
+    -- Kick tất cả members còn lại (trừ owner đang bị xóa)
+    DELETE FROM room_members
+    WHERE room_id = OLD.room_id 
+      AND user_id != OLD.user_id;
+    
+    -- Log system message (optional)
+    INSERT INTO messages (sender_id, room_id, message, is_delivered, is_read)
+    VALUES (
+      0,  -- system user (ID 0 không tồn tại trong users)
+      OLD.room_id,
+      format('Room closed: Owner (user %s) left the room', OLD.user_id),
+      TRUE,
+      TRUE
+    );
+  END IF;
+  
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger: Kích hoạt khi DELETE trên room_members
+CREATE TRIGGER trg_auto_close_room_on_owner_leave
+  BEFORE DELETE ON room_members
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_close_room_on_owner_leave();
+
+-- =========================
 -- SAMPLE DATA - QUESTIONS
 -- =========================
 INSERT INTO question (difficulty_level, content, "opA", "opB", "opC", "opD", correct_op, explanation)

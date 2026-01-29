@@ -38,6 +38,7 @@ public:
     Q_INVOKABLE void sendLeaveRoom(qint64 roomId);
     Q_INVOKABLE void sendStartGame1VN(qint64 roomId);
     Q_INVOKABLE void sendSubmitAnswer1VN(qint64 sessionId, int round, const QString &answer, double timeLeft);
+    Q_INVOKABLE void sendUseLifeline1VN(qint64 sessionId, int round);
     
     // Friends & Chat requests
     Q_INVOKABLE void sendSearchUser(const QString &query, int limit = 20);
@@ -98,6 +99,9 @@ signals:
     void oneVNAnswerResult1VN(bool correct, int score, int totalScore, bool eliminated, bool timeout = false);
     void oneVNElimination(qint64 userId, int round);
     void oneVNGameOver1VN(qint64 winnerId, const QJsonArray &leaderboard);
+    void oneVNLifelineResult(qint64 sessionId, int round,
+                             const QStringList &remainingOptions,
+                             const QStringList &removedOptions, int remaining);
     
     // Friends & Chat signals
     void searchUserResult(const QJsonArray &users);
